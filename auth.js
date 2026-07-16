@@ -1,208 +1,251 @@
 /* ============================================================
-   TALENT FLOW  |  auth.js
+   TALENT FLOW  |  auth.js  (Supabase)
    ------------------------------------------------------------
-   Real accounts via Firebase Authentication + Firestore, with
-   Firebase Storage for avatar photos.
-   Exposes window.TalentFlowAuth, which every other script calls
-   into. This file owns everything Firebase-related.
+   Real accounts via Supabase Auth + Postgres, with Supabase
+   Storage for avatar photos. Exposes window.TalentFlowAuth,
+   which every other script calls into — same method names as
+   the old Firebase version, so nothing else in the app needs
+   to change.
    ============================================================ */
 
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js';
-import {
-  getAuth,
-  GoogleAuthProvider,
-  signInWithPopup,
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-  updateProfile,
-  sendPasswordResetEmail,
-  sendEmailVerification,
-  reload,
-  onAuthStateChanged,
-  signOut,
-} from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-auth.js';
-import {
-  getFirestore,
-  doc,
-  setDoc,
-  getDoc,
-  collection,
-  query,
-  where,
-  getDocs,
-  serverTimestamp,
-} from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js';
-import {
-  getStorage,
-  ref,
-  uploadBytes,
-  uploadString,
-  getDownloadURL,
-} from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-storage.js';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-/* ── Paste your Talent Flow project's config here ────────────
-   Firebase console → ⚙️ Project settings → General → "Your apps"
-   This must be a DIFFERENT project from Mise AI's — separate app,
-   separate users. This is the only setup this file needs. ──── */
-const firebaseConfig = {
-    apiKey: "AIzaSyCW_ZS2R8UxhGoA5bqK4fZ59tagu29HDJk",
-    authDomain: "another-b384c.firebaseapp.com",
-    projectId: "another-b384c",
-    storageBucket: "another-b384c.firebasestorage.app",
-    messagingSenderId: "913158897020",
-    appId: "1:913158897020:web:ea87eeb222f7a8d8dff8f9",
-    measurementId: "G-DY0JVEJG1R"
-};
+/* ── Paste your Supabase project's URL and anon key here ─────
+   Supabase dashboard → Project Settings → API. The anon key is
+   safe to expose client-side — it only grants what the Row
+   Level Security policies (see the SQL schema) allow. ──────── */
+const SUPABASE_URL = 'https://YOUR-PROJECT-REF.supabase.co';
+const SUPABASE_ANON_KEY = 'YOUR-ANON-PUBLIC-KEY';
 
-const app     = initializeApp(firebaseConfig);
-const auth    = getAuth(app);
-const db      = getFirestore(app);
-const storage = getStorage(app);
-const googleProvider = new GoogleAuthProvider();
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 /* ── ERROR MESSAGES ──────────────────────────────────────── */
 function friendlyError(err) {
-  const code = (err && err.code) || '';
-  console.error('Auth error:', code, err && err.message);
-  const messages = {
-    'auth/invalid-email':          'Enter a valid email address',
-    'auth/user-not-found':         'Incorrect email or password',
-    'auth/wrong-password':         'Incorrect email or password',
-    'auth/invalid-credential':     'Incorrect email or password',
-    'auth/email-already-in-use':   "That email's already registered — try logging in instead",
-    'auth/weak-password':          'Please use at least 8 characters',
-    'auth/too-many-requests':      'Too many attempts — please wait a moment and try again',
-    'auth/network-request-failed': 'Network error — check your connection and try again',
-    'auth/unauthorized-domain':    "This domain isn't authorized in Firebase yet",
-    'auth/operation-not-allowed':  "This sign-in method isn't enabled yet in the Firebase console",
-    'storage/unauthorized':        "Photo upload isn't permitted — check Firebase Storage rules",
-    'storage/unknown':             'Could not upload the photo — please try again',
-  };
-  return messages[code] || 'Something went wrong — please try again';
+  const raw = (err && (err.message || err.error_description)) || String(err || '');
+  console.error('Auth/Storage error:', raw);
+  const msg = raw.toLowerCase();
+
+  if (msg.includes('invalid login credentials')) return 'Incorrect email or password';
+  if (msg.includes('already registered') || msg.includes('already been registered')) return "That email's already registered — try logging in instead";
+  if (msg.includes('password should be at least') || msg.includes('weak password')) return 'Please use at least 8 characters';
+  if (msg.includes('rate limit') || msg.includes('too many requests')) return 'Too many attempts — please wait a moment and try again';
+  if (msg.includes('failed to fetch') || msg.includes('network')) return 'Network error — check your connection and try again';
+  if (msg.includes('email not confirmed')) return 'Please confirm your email before logging in';
+  if (msg.includes('row-level security') || msg.includes('permission denied')) return "That action isn't permitted — check your account permissions";
+  if (msg.includes('bucket') || msg.includes('storage')) return "Photo upload isn't permitted — check your Supabase Storage setup";
+  if (msg.includes('invalid email')) return 'Enter a valid email address';
+
+  return 'Something went wrong — please try again';
 }
 
-/* ── PROFILE STORAGE (Firestore) ─────────────────────────────
-   Firebase Auth itself only knows name/email/photo. Everything
-   else the app needs (role, bio, avatar URL, settings…) lives in
-   a small Firestore doc per user instead: users/{uid}.
-
-   Alongside that private doc, a small publicProfiles/{uid} doc is
-   kept in sync with just the fields safe to show to OTHER people
-   (name, avatar, role) — e.g. so a student can see an instructor's
-   name/photo on a course card without being able to read that
-   instructor's email or anything else private. ─────────────── */
-
-// Never let a Firestore call hang forever — if something's silently
-// blocking the connection (a strict ad-blocker/extension is the most
-// common cause), fail after 4s instead of waiting indefinitely.
-function withTimeout(promise, ms = 4000) {
+/* ── TIMEOUT HELPER ───────────────────────────────────────────
+   Never let a Supabase call hang forever — same safeguard the
+   Firestore version had against silent failures. ───────────── */
+function withTimeout(promise, ms = 4000, message = 'Request timed out') {
   return Promise.race([
     promise,
-    new Promise((_, reject) => setTimeout(() => reject(new Error('Firestore request timed out')), ms)),
+    new Promise((_, reject) => setTimeout(() => reject(new Error(message)), ms)),
   ]);
 }
 
-// Small in-memory cache of the signed-in user's OWN profile, so
-// synchronous readers (like settings.js) always have something to
-// read once loadProfile() has resolved at least once this session.
+/* ── PROFILE STORAGE (Postgres `profiles` table) ─────────────
+   Auth itself only knows email. Everything else (role, bio,
+   avatar, settings…) lives in profiles/{uid} — auto-created the
+   moment someone signs up (see the SQL trigger), so saveProfile()
+   can always just upsert. A `public_profiles` VIEW (not a
+   manually-synced collection) exposes name/avatar/role to
+   everyone else. ─────────────────────────────────────────────── */
+
 let cachedProfile = null;
 
-const PUBLIC_FIELDS = ['fullName', 'avatar', 'role'];
+const PROFILE_COLUMNS = {
+  fullName: 'full_name', email: 'email', bio: 'bio', role: 'role',
+  avatar: 'avatar', provider: 'provider', username: 'username',
+  profileCompleted: 'profile_completed', title: 'title', expertise: 'expertise',
+  experience: 'experience', education: 'education', linkedin: 'linkedin',
+  website: 'website', educationLevel: 'education_level', fieldOfStudy: 'field_of_study',
+  interests: 'interests', goals: 'goals', github: 'github', settings: 'settings',
+};
 
-function publicSlice(data) {
+function toDbPatch(data) {
+  const patch = {};
+  Object.entries(data).forEach(([key, value]) => {
+    patch[PROFILE_COLUMNS[key] || key] = value;
+  });
+  return patch;
+}
+
+function fromDbRow(row) {
+  if (!row) return null;
   const out = {};
-  PUBLIC_FIELDS.forEach((key) => {
-    if (data[key] !== undefined) out[key] = data[key];
+  Object.entries(PROFILE_COLUMNS).forEach(([camel, col]) => {
+    if (row[col] !== undefined) out[camel] = row[col];
   });
   return out;
 }
 
 async function saveProfile(uid, data) {
-  await withTimeout(setDoc(doc(db, 'users', uid), data, { merge: true }));
+  const patch = toDbPatch(data);
+  const { error } = await withTimeout(
+    supabase.from('profiles').upsert({ id: uid, ...patch }, { onConflict: 'id' })
+  );
+  if (error) throw error;
   cachedProfile = { ...(cachedProfile || {}), ...data };
-
-  const publicPatch = publicSlice(data);
-  if (Object.keys(publicPatch).length) {
-    // Best-effort — a student's course-catalog view being a beat behind
-    // isn't worth blocking (or failing) the profile save over.
-    withTimeout(setDoc(doc(db, 'publicProfiles', uid), publicPatch, { merge: true })).catch((err) => {
-      console.error('Public profile sync failed (continuing anyway):', err);
-    });
-  }
   return data;
 }
 
 async function loadProfile(uid) {
-  const snap = await withTimeout(getDoc(doc(db, 'users', uid)));
-  const data = snap.exists() ? snap.data() : null;
-  cachedProfile = data;
-  return data;
+  const { data, error } = await withTimeout(
+    supabase.from('profiles').select('*').eq('id', uid).maybeSingle()
+  );
+  if (error) throw error;
+  cachedProfile = fromDbRow(data);
+  return cachedProfile;
 }
 
-/* ── AVATAR PHOTOS (Firebase Storage) ─────────────────────────
-   Firestore documents are meant to stay small, so the photo
-   itself is uploaded to Storage and only its download URL (a
-   short string) is stored on the profile doc. That URL works for
-   anyone who loads it — including a different person on a
-   different device — which is what lets an instructor's photo
-   show up on a course card in a student's browser. ──────────── */
+/* ── STUDENT LOOKUP (RPC) ─────────────────────────────────────
+   Used by the instructor "Invite Student" flow to recognise an
+   already-registered student by email. */
+async function findStudentByEmailDoc(email) {
+  const { data, error } = await withTimeout(
+    supabase.rpc('find_student_by_email', { lookup_email: email })
+  );
+  if (error) { console.error('Student lookup failed:', error); return null; }
+  if (!data || !data.length) return null;
+  const row = data[0];
+  return { uid: row.uid, fullName: row.full_name, avatar: row.avatar, email: row.email };
+}
 
+/* ── AVATAR PHOTOS (Supabase Storage) ─────────────────────────
+   Only the resulting public URL gets stored on the profile row —
+   that URL works for anyone, on any device, which is what lets
+   an instructor's photo show up on a course card in a student's
+   browser. ──────────────────────────────────────────────────── */
 async function uploadAvatar(uid, fileOrDataUrl) {
-  const path = `avatars/${uid}/${Date.now()}`;
-  const storageRef = ref(storage, path);
+  const timeoutMsg = 'Photo upload timed out. In the Supabase dashboard, check Storage → make sure the "avatars" bucket exists.';
+
+  let fileBody = fileOrDataUrl;
+  let contentType = 'image/jpeg';
+  let ext = 'jpg';
+
   if (typeof fileOrDataUrl === 'string') {
-    await uploadString(storageRef, fileOrDataUrl, 'data_url');
+    const res = await fetch(fileOrDataUrl);
+    fileBody = await res.blob();
+    contentType = fileBody.type || contentType;
   } else {
-    await uploadBytes(storageRef, fileOrDataUrl, { contentType: fileOrDataUrl.type || 'image/jpeg' });
+    contentType = fileOrDataUrl.type || contentType;
+    const nameExt = (fileOrDataUrl.name || '').split('.').pop();
+    if (nameExt) ext = nameExt;
   }
-  return getDownloadURL(storageRef);
+
+  const path = `${uid}/${Date.now()}.${ext}`;
+
+  const { error: uploadError } = await withTimeout(
+    supabase.storage.from('avatars').upload(path, fileBody, { contentType, upsert: true }),
+    20000,
+    timeoutMsg
+  );
+  if (uploadError) throw uploadError;
+
+  const { data } = supabase.storage.from('avatars').getPublicUrl(path);
+  return data.publicUrl;
 }
 
-/* ── ENROLLMENTS (Firestore) ─────────────────────────────────
-   enrollments/{studentUid_courseId} — one doc per student+course
-   pair, ID built from both uids so a student can't double-enroll
-   and "am I enrolled?" is a single doc lookup, not a query. ──── */
+/* ── ENROLLMENTS (Postgres `enrollments` table) ──────────────── */
 
 async function enrollInCourseDoc(studentUid, course) {
-  const enrollmentId = `${studentUid}_${course.id}`;
-  await withTimeout(setDoc(doc(db, 'enrollments', enrollmentId), {
-    studentUid,
-    courseId: course.id,
-    courseTitle: course.title,
-    thumb: course.thumb || '',
-    lessons: course.lessons || 0,
-    instructorName: course.instructorName || '',
-    progress: 0,
-    completedLessons: 0,
-    enrolledAt: serverTimestamp(),
-  }));
+  const { error } = await withTimeout(
+    supabase.from('enrollments').upsert({
+      student_id: studentUid,
+      course_id: course.id,
+      course_title: course.title,
+      thumb: course.thumb || '',
+      lessons: course.lessons || 0,
+      instructor_name: course.instructorName || '',
+      progress: 0,
+      completed_lessons: 0,
+    }, { onConflict: 'student_id,course_id' })
+  );
+  if (error) throw error;
 }
 
 async function isEnrolledDoc(studentUid, courseId) {
-  const snap = await withTimeout(getDoc(doc(db, 'enrollments', `${studentUid}_${courseId}`)));
-  return snap.exists();
+  const { data, error } = await withTimeout(
+    supabase.from('enrollments').select('id').eq('student_id', studentUid).eq('course_id', courseId).maybeSingle()
+  );
+  if (error) throw error;
+  return !!data;
 }
 
 async function listMyEnrollmentsDocs(studentUid) {
-  const q = query(collection(db, 'enrollments'), where('studentUid', '==', studentUid));
-  const snap = await withTimeout(getDocs(q));
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  const { data, error } = await withTimeout(
+    supabase.from('enrollments').select('*').eq('student_id', studentUid)
+  );
+  if (error) throw error;
+  return (data || []).map((r) => ({
+    id: r.id,
+    courseId: r.course_id,
+    courseTitle: r.course_title,
+    thumb: r.thumb,
+    lessons: r.lessons,
+    instructorName: r.instructor_name,
+    progress: r.progress,
+    completedLessons: r.completed_lessons,
+    enrolledAt: r.enrolled_at,
+  }));
 }
 
 /* ── SHARED AUTH STATE ────────────────────────────────────────
-   One listener for the whole app. Pages that need to know who's
-   signed in (profile pages) call TalentFlowAuth.requireAuth()
-   instead of each wiring up their own onAuthStateChanged. ──── */
+   One listener for the whole app — pages call
+   TalentFlowAuth.requireAuth() instead of each wiring up their
+   own listener. ─────────────────────────────────────────────── */
 let authReady = false;
 let currentUser = null;
 const readyCallbacks = [];
 
-onAuthStateChanged(auth, (user) => {
-  currentUser = user;
+function normalizeUser(user) {
+  if (!user) return null;
+  const meta = user.user_metadata || {};
+  return {
+    uid: user.id,
+    email: user.email || '',
+    displayName: meta.full_name || meta.name || '',
+    photoURL: meta.avatar_url || meta.picture || '',
+    emailVerified: !!user.email_confirmed_at,
+  };
+}
+
+supabase.auth.onAuthStateChange(async (event, session) => {
+  currentUser = normalizeUser(session ? session.user : null);
+  window.TalentFlowUser = currentUser;
   authReady = true;
-  window.TalentFlowUser = user;
-  if (!user) cachedProfile = null;
-  readyCallbacks.splice(0).forEach((cb) => cb(user));
+  if (!currentUser) cachedProfile = null;
+  readyCallbacks.splice(0).forEach((cb) => cb(currentUser));
+
+  if (event === 'PASSWORD_RECOVERY') {
+    window.dispatchEvent(new CustomEvent('tf-password-recovery'));
+  }
+
+  // Completing a Google redirect lands back here with tokens in the
+  // URL hash — finish the same "check profile, go to the right page"
+  // step the old popup flow used to do inline.
+  if (event === 'SIGNED_IN' && currentUser && window.location.hash.includes('access_token')) {
+    history.replaceState(null, '', window.location.pathname + window.location.search);
+    try {
+      const existing = await loadProfile(currentUser.uid);
+      if (!existing) {
+        await saveProfile(currentUser.uid, {
+          fullName: currentUser.displayName || '',
+          email: currentUser.email || '',
+          provider: 'google',
+          role: '',
+        });
+      }
+      window.TalentFlowAuth.redirectToRoleProfile(existing ? existing.role : '', currentUser);
+    } catch (err) {
+      console.error('Post-sign-in redirect check failed:', err);
+    }
+  }
 });
 
 function onUserKnown(callback) {
@@ -222,68 +265,49 @@ function initialsAvatar(label) {
 
 /* ── PUBLIC INTERFACE ─────────────────────────────────────── */
 window.TalentFlowAuth = {
-  // Opens Firebase's own Google popup — no separate client ID needed.
-  signInWithGoogle() {
-    return signInWithPopup(auth, googleProvider).then(async ({ user }) => {
-      let role = '';
-      try {
-        const existing = await loadProfile(user.uid);
-        role = existing ? existing.role : '';
-        if (!existing) {
-          saveProfile(user.uid, {
-            name: user.displayName || '',
-            fullName: user.displayName || '',
-            email: user.email || '',
-            provider: 'google',
-            role: '',
-          }).catch((err) => console.error('Firestore profile save failed (continuing anyway):', err));
-        }
-      } catch (err) {
-        // Signed in fine, but couldn't reach Firestore in time — don't
-        // strand someone who's already authenticated over this.
-        console.error('Firestore profile read failed (continuing anyway):', err);
-      }
-      window.TalentFlowAuth.redirectToRoleProfile(role, user);
-    });
+  async signInWithGoogle() {
+    const redirectTo = window.location.origin + window.location.pathname;
+    const { error } = await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo } });
+    if (error) throw error;
   },
 
-  // Email/password sign-up. Role isn't collected here anymore — it's
-  // chosen on choose-role.html right after this. Returns a Promise.
   async register(name, email, password) {
-    const { user } = await createUserWithEmailAndPassword(auth, email, password);
-    await updateProfile(user, { displayName: name });
-    saveProfile(user.uid, { name, fullName: name, email, role: '', provider: 'email' }).catch((err) => {
-      console.error('Firestore profile save failed (continuing anyway):', err);
+    const { data, error } = await supabase.auth.signUp({
+      email, password, options: { data: { full_name: name } },
     });
-    sendEmailVerification(user).catch((err) => {
-      console.error('Could not send verification email (continuing anyway):', err);
+    if (error) throw error;
+    const user = normalizeUser(data.user);
+    await saveProfile(user.uid, { fullName: name, email, role: '', provider: 'email' }).catch((err) => {
+      console.error('Profile save failed (continuing anyway):', err);
     });
     return { user, role: '' };
   },
 
-  // Email/password login. Returns a Promise resolving to { user, role }.
   async login(email, password) {
-    const { user } = await signInWithEmailAndPassword(auth, email, password);
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+    const user = normalizeUser(data.user);
     let role = '';
     try {
       const profile = await loadProfile(user.uid);
       role = profile ? profile.role : '';
     } catch (err) {
-      console.error('Firestore profile read failed (continuing anyway):', err);
+      console.error('Profile read failed (continuing anyway):', err);
     }
     return { user, role };
   },
 
-  // Real reset-link email (replaces the old instant-reveal demo).
-  sendResetLink(email) {
-    return sendPasswordResetEmail(auth, email);
+  async sendResetLink(email) {
+    const redirectTo = window.location.href.replace(/[^/]*$/, 'password.html');
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+    if (error) throw error;
   },
 
-  // Where to send someone after login/signup, based on role. An
-  // unverified email/password account is sent to verify-email.html
-  // first — Google accounts arrive already verified by Google, so
-  // they skip straight through. Blank role (brand-new signup) goes
-  // to choose-role.html to pick one.
+  async confirmPasswordReset(newPassword) {
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) throw error;
+  },
+
   redirectToRoleProfile(role, user) {
     const u = user || window.TalentFlowUser;
     if (u && !u.emailVerified) { window.location.href = 'verify-email.html'; return; }
@@ -292,44 +316,35 @@ window.TalentFlowAuth = {
     else window.location.href = 'choose-role.html';
   },
 
-  // verify-email.html calls this to send (or resend) the link.
-  sendVerificationEmail() {
-    const user = window.TalentFlowUser;
-    if (!user) return Promise.reject(new Error('Not signed in'));
-    return sendEmailVerification(user);
+  async sendVerificationEmail() {
+    const email = window.TalentFlowUser && window.TalentFlowUser.email;
+    if (!email) throw new Error('Not signed in');
+    const { error } = await supabase.auth.resend({ type: 'signup', email });
+    if (error) throw error;
   },
 
-  // verify-email.html calls this after the person says they've
-  // clicked the link — re-checks with Firebase rather than trusting
-  // a local flag, since the click happened in their email client.
   async checkEmailVerified() {
-    const user = window.TalentFlowUser;
-    if (!user) return false;
-    await withTimeout(reload(user));
-    return user.emailVerified;
+    const { data, error } = await supabase.auth.getUser();
+    if (error || !data || !data.user) return false;
+    currentUser = normalizeUser(data.user);
+    window.TalentFlowUser = currentUser;
+    return currentUser.emailVerified;
   },
 
-  // choose-role.html calls this once someone picks a card. Sends them
-  // straight to the matching profile-setup page immediately, while the
-  // save happens quietly in the background — navigation never waits on it.
   setRole(role) {
     const user = window.TalentFlowUser;
     if (!user) { window.location.href = 'login.html'; return; }
     saveProfile(user.uid, { role }).catch((err) => {
-      console.error('Firestore role save failed (continuing anyway):', err);
+      console.error('Role save failed (continuing anyway):', err);
     });
     this.redirectToRoleProfile(role);
   },
 
   logOut() {
-    return signOut(auth).then(() => { window.location.href = 'login.html'; });
+    return supabase.auth.signOut().then(() => { window.location.href = 'login.html'; });
   },
-  signOutUser() {
-    return this.logOut();
-  },
+  signOutUser() { return this.logOut(); },
 
-  // Protected pages call this on load. Resolves with the signed-in
-  // user, or sends them to login.html if there isn't one.
   requireAuth() {
     return new Promise((resolve) => {
       onUserKnown((user) => {
@@ -339,27 +354,17 @@ window.TalentFlowAuth = {
     });
   },
 
-  // Profile
   saveProfile,
   loadProfile,
-  // Same as saveProfile, but for the currently signed-in user — used by
-  // pages (like settings.js) that don't already have the uid handy.
+  findStudentByEmail: findStudentByEmailDoc,
   saveUserProfile(data) {
     const user = window.TalentFlowUser;
     if (!user) return Promise.reject(new Error('Not signed in'));
     return saveProfile(user.uid, data);
   },
-  // Synchronous read of whatever loadProfile()/saveProfile() last saw —
-  // there for callers that render before they can await anything.
-  getStoredProfile() {
-    return cachedProfile;
-  },
+  getStoredProfile() { return cachedProfile; },
 
-  // App settings (language, timezone, notification prefs, 2FA) live as a
-  // nested field on the same user doc rather than a separate collection.
-  getSettings() {
-    return (cachedProfile && cachedProfile.settings) || {};
-  },
+  getSettings() { return (cachedProfile && cachedProfile.settings) || {}; },
   saveSettings(patch) {
     const user = window.TalentFlowUser;
     if (!user) return Promise.reject(new Error('Not signed in'));
@@ -367,19 +372,14 @@ window.TalentFlowAuth = {
     return saveProfile(user.uid, { settings: merged });
   },
 
-  // Avatar photo upload → Firebase Storage, returns a public URL that
-  // works for anyone, on any device.
   uploadAvatar,
-
   initialsAvatar,
   friendlyError,
 
-  // Firestore instance — data-store.js reuses this instead of creating
-  // a second Firebase app. (This was missing before, which meant
-  // data-store.js could never actually reach Firestore.)
-  db,
+  // Supabase client instance — data-store.js reuses this instead of
+  // creating a second client.
+  supabase,
 
-  // Enrollment
   enrollInCourse(course) {
     const user = window.TalentFlowUser;
     if (!user) return Promise.reject(new Error('Not signed in'));
