@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Talent Flow — Module 3</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    /* Sidebar removed — shell fills full width, respects fixed nav height */
+    .shell {
+      margin-left: 0;
+      margin-top: var(--nav-h);
+      padding: 32px 40px 60px;
+      max-width: 1300px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    @media (max-width: 640px) {
+      .shell { padding: 16px 14px 80px; }
+    }
+    @media (max-width: 360px) {
+      .shell { padding: 12px 10px 80px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══ NAV ══ -->
+<nav class="app-nav" role="navigation" aria-label="Main navigation">
+  <div class="nav-left">
+    <button class="back-btn" onclick="window.location.href='../courses.html'" title="Go back" aria-label="Go back">&#8249;</button>
+    <a class="nav-logo" href="#" aria-label="Talent Flow home">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/>
+      </svg>
+      Talent Flow
+    </a>
+  </div>
+  <div class="nav-right">
+    <span class="nav-role" aria-hidden="true">Student</span>
+    <button class="nav-icon" aria-label="Notifications">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0"/>
+      </svg>
+    </button>
+    <div class="nav-avatar">
+      <img src="https://i.pravatar.cc/40?img=47" alt="User avatar">
+    </div>
+  </div>
+</nav>
+
+<!-- ══ MAIN SHELL ══ -->
+<div class="shell">
+
+  <!-- Breadcrumb -->
+  <nav class="breadcrumb" id="breadcrumb" aria-label="Breadcrumb">
+    <span class="bc" onclick="showToast('Courses')" tabindex="0" role="button">Courses</span>
+    <span class="bc-sep">›</span>
+    <span class="bc" onclick="showToast('UI/UX Design')" tabindex="0" role="button">UI/UX Design</span>
+    <span class="bc-sep">›</span>
+    <span class="bc last" id="bc-current" aria-current="page">Module 3</span>
+  </nav>
+
+  <!-- Step tabs -->
+  <div class="step-tabs" id="stepTabs" role="tablist" aria-label="Module steps">
+    <button class="step-tab active" role="tab" aria-selected="true" aria-controls="panel-2" id="tab-2" onclick="goToModule(2)">📄 Lesson Content</button>
+    <button class="step-tab" role="tab" aria-selected="false" aria-controls="panel-3" id="tab-3" onclick="goToModule(3)">📝 Understanding Grids</button>
+    <button class="step-tab" role="tab" aria-selected="false" aria-controls="panel-4" id="tab-4" onclick="goToModule(4)">🏆 Completion</button>
+  </div>
+
+  <!-- MODULE 2 — PDF Viewer -->
+  <div class="module-panel active" id="panel-2" role="tabpanel" aria-labelledby="tab-2">
+    <div class="lesson-layout">
+      <div class="lesson-card">
+        <div class="lesson-header">
+          <h1 class="lesson-title">Lesson Content — Module 3</h1>
+          <span class="read-badge">32 pages</span>
+        </div>
+
+        <div class="pdf-viewer">
+          <div class="page-nav">
+            <button class="pg-btn" id="pdfPrev" onclick="changePage(-1)" disabled aria-label="Previous page">‹</button>
+            <span class="page-info">Page <span id="curPage">1</span> of <span id="totPages">32</span></span>
+            <button class="pg-btn" id="pdfNext" onclick="changePage(1)" aria-label="Next page">›</button>
+          </div>
+
+          <div class="pdf-frame" id="pdfFrame" tabindex="0" role="img" aria-label="PDF viewer">
+            <img id="pdfPageImage" src="Project1-main/images/Rectangle 48.png" alt="PDF page 1">
+            <div class="page-number-overlay" id="pdfPageNumber" aria-hidden="true">1</div>
+            <div class="pdf-page-num" id="pdfPageBadge">1 / 32</div>
+          </div>
+
+          <button class="download-btn" onclick="handleDownload()" aria-label="Download PDF">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"/>
+            </svg>
+            Download as PDF
+          </button>
+        </div>
+      </div>
+      
+      <!-- Bottom Nav for Module 2 -->
+      <div class="lesson-footer" style="margin-top: 20px;">
+        <div class="nav-pair">
+          <button class="prev-btn" onclick="navigatePrev()" disabled>Previous</button>
+          <button class="next-btn" onclick="navigateNext()">
+            Next
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Curriculum sidebar -->
+      <aside class="curriculum-card" id="curr-2" aria-label="Curriculum">
+        <div class="curr-header" onclick="toggleCurriculum('curr-2')" role="button" tabindex="0" aria-expanded="true">
+          <h2 class="curr-title">Curriculum</h2>
+          <span class="curr-arrow open" id="arr-curr-2" aria-hidden="true">∨</span>
+        </div>
+        <ul class="curr-list" id="list-curr-2" role="list"></ul>
+        <div class="mod-prog-wrap">
+          <div class="mod-prog-label">
+            <span>Module progress</span>
+            <span id="mp-pct">0%</span>
+          </div>
+          <div class="mod-prog-track" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+            <div class="mod-prog-fill" id="mp-fill"></div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <!-- MODULE 3 — Lesson Text -->
+  <div class="module-panel" id="panel-3" role="tabpanel" aria-labelledby="tab-3">
+    <div class="lesson-layout">
+      <div class="lesson-card">
+        <div class="lesson-header">
+          <h1 class="lesson-title">Understanding Grid Systems</h1>
+          <span class="read-badge">7 min read</span>
+        </div>
+
+        <div class="lesson-body">
+          <h2 class="section-h">3.1 The 8pt Grid</h2>
+          <p>Lorem ipsum dolor sit amet consectetur adipiscing elit. Ut et massa mi. Aliquam in endrerit urna. Pellentesque sit amet sapien. Lorem ipsum dolor sit amet consectetur adipiscing elit. Ut et massa mi. Aliquam in endrerit urna. Pellentesque sit amet sapien. Lorem ipsum dolor sit amet consectetur adipiscing elit Ut et massa mi. Aliquam in endrerit urna. Pellentesque sit amet sapien.</p>
+
+          <div class="asset-row">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/>
+            </svg>
+            <span>Downloadable assets</span>
+            <a href="#" class="asset-link" onclick="handleDownload(); return false;">https:Downloading Grid-System-Document.pdf</a>
+          </div>
+
+          <p>Lorem ipsum dolor sit amet consectetur adipiscing elit. Ut et massa mi. Aliquam in endrerit urna. Pellentesque sit amet sapien. Lorem ipsum dolor sit amet consectetur adipiscing elit. Ut et massa mi. Aliquam in endrerit urna. Pellentesque sit amet sapien. Lorem ipsum dolor sit amet consectetur adipiscing elit Ut et massa mi. Aliquam in endrerit urna. Pellentesque sit amet sapien.</p>
+
+          <h2 class="section-h">3.2 Layout Principles</h2>
+          <p>Lorem ipsum dolor sit amet consectetur adipiscing elit Ut et massa mi. Aliquam in endrerit urna. Pellentesque sit amet sapien. Lorem ipsum dolor sit amet consectetur adipiscing elit Ut et massa mi. Aliquam in endrerit urna. Pellentesque sit amet sapien.</p>
+
+          <div class="tip-box">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.406 14.406 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.509 1.333 1.509 2.316V18"/>
+            </svg>
+            <p><strong>Pro tip:</strong> Always use multiples of 8 for spacing to maintain visual consistency across all screen sizes.</p>
+          </div>
+        </div>
+
+        <!-- Reading progress -->
+        <div class="reading-prog-wrap">
+          <div class="prog-label">
+            <span>Reading progress</span>
+            <span id="readPct">0%</span>
+          </div>
+          <div class="prog-track" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+            <div class="prog-fill" id="readFill"></div>
+          </div>
+        </div>
+
+        <div class="lesson-footer">
+          <div class="nav-pair">
+            <button class="prev-btn" onclick="navigatePrev()" aria-label="Previous lesson">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5"/></svg>
+              Previous
+            </button>
+            <button class="next-btn" onclick="navigateNext()" aria-label="Next lesson">
+              Next
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg>
+            </button>
+          </div>
+          <button class="complete-btn" id="completeBtn" onclick="markComplete()" aria-label="Mark lesson as complete">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>
+            Mark As Complete
+          </button>
+        </div>
+      </div>
+
+      <!-- Curriculum -->
+      <aside class="curriculum-card" id="curr-3" aria-label="Curriculum">
+        <div class="curr-header" onclick="toggleCurriculum('curr-3')" role="button" tabindex="0" aria-expanded="true">
+          <h2 class="curr-title">Curriculum</h2>
+          <span class="curr-arrow open" id="arr-curr-3" aria-hidden="true">∨</span>
+        </div>
+        <ul class="curr-list" id="list-curr-3" role="list"></ul>
+        <div class="mod-prog-wrap">
+          <div class="mod-prog-label">
+            <span>Module progress</span>
+            <span id="mp-pct-3">0%</span>
+          </div>
+          <div class="mod-prog-track" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+            <div class="mod-prog-fill" id="mp-fill-3"></div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <!-- MODULE 4 — Congratulations -->
+  <div class="module-panel" id="panel-4" role="tabpanel" aria-labelledby="tab-4">
+    <div class="lesson-layout">
+      <div class="lesson-card">
+        <div class="congrats-wrap">
+          <svg class="confetti-icon" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <circle cx="60" cy="60" r="58" fill="#FFF7ED" stroke="#FCD34D" stroke-width="3"/>
+            <text x="60" y="78" text-anchor="middle" font-size="52">🏆</text>
+            <path class="checkmark" d="M38 62 L52 76 L82 46" fill="none" stroke="#F59E0B" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+
+          <h1 class="congrats-title">Congratulations, Favour!</h1>
+          <p class="congrats-sub">You have successfully completed <strong>Module 3 — Understanding Grid Systems</strong> with 100% progress.</p>
+
+          <div class="cert-badge">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 0 1-1.043 3.296 3.745 3.745 0 0 1-3.296 1.043A3.745 3.745 0 0 1 12 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 0 1-3.296-1.043 3.745 3.745 0 0 1-1.043-3.296A3.745 3.745 0 0 1 3 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 0 1 1.043-3.296 3.746 3.746 0 0 1 3.296-1.043A3.746 3.746 0 0 1 12 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 0 1 3.296 1.043 3.746 3.746 0 0 1 1.043 3.296A3.745 3.745 0 0 1 21 12Z"/>
+            </svg>
+            Certificate of Completion — 100% Complete
+          </div>
+
+          <div class="congrats-btns">
+            <button class="cert-btn" onclick="viewCertificate()" aria-label="View certificate">View Certificate</button>
+            <button class="dash-btn" onclick="goToDashboard()" aria-label="Go to dashboard">Go To My Learning Dashboard</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Curriculum -->
+      <aside class="curriculum-card" id="curr-4" aria-label="Curriculum">
+        <div class="curr-header" onclick="toggleCurriculum('curr-4')" role="button" tabindex="0" aria-expanded="true">
+          <h2 class="curr-title">Curriculum</h2>
+          <span class="curr-arrow open" id="arr-curr-4" aria-hidden="true">∨</span>
+        </div>
+        <ul class="curr-list" id="list-curr-4" role="list"></ul>
+        <div class="mod-prog-wrap">
+          <div class="mod-prog-label">
+            <span>Module progress</span>
+            <span id="mp-pct-4">100%</span>
+          </div>
+          <div class="mod-prog-track" role="progressbar" aria-valuenow="100" aria-valuemin="0" aria-valuemax="100">
+            <div class="mod-prog-fill" id="mp-fill-4" style="width:100%"></div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast" role="alert" aria-live="polite" aria-atomic="true"></div>
+
+<!-- Main Application Script -->
+<script src="js/app.js" defer></script>
+<script src="/Project1/nav-avatar.js"></script>
+
+</body>
+</html>

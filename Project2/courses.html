@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="profile.css">
+    <link rel="stylesheet" href="courses.css">
+    <script type="module" src="auth.js"></script>
+    <script type="module" src="data-store.js"></script>
+    <script src="nav-avatar.js" defer></script>
+    <script src="courses.js" defer></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
+    <title>Courses — Talent Flow</title>
+</head>
+<body data-profile-page="student">
+
+    <div id="toast-container"></div>
+
+    <header class="topbar">
+        <span class="brand">Talent Flow</span>
+        <div class="topbar-actions">
+            <div class="avatar" style="margin-right:4px">
+                <img id="nav-avatar-img" src="" alt="Profile" style="width:36px;height:36px;border-radius:50%;object-fit:cover;border:2px solid #e2e8f0;display:block;">
+            </div>
+            <span class="role-badge" id="roleBadge">Student</span>
+            <a href="student-profile.html" class="btn-link">My Profile</a>
+            <button type="button" class="btn-link" id="logoutBtn">Log Out</button>
+        </div>
+    </header>
+
+    <main class="scourses-shell">
+        <div class="scourses-head">
+            <div>
+                <h1>Browse Courses</h1>
+                <p class="scourses-sub">Find your next course and start learning.</p>
+            </div>
+            <div class="scourses-search">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+                </svg>
+                <input type="text" id="courseSearch" placeholder="Search courses or instructors…">
+            </div>
+        </div>
+
+        <div class="scourse-grid" id="courseGrid"></div>
+
+        <div class="scourses-empty" id="emptyState" hidden>
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 20.25h12m-7.5-3v3m3-3v3m-10.125-3h17.25c.621 0 1.125-.504 1.125-1.125V4.875c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125Z" />
+            </svg>
+            <p id="emptyStateText">No published courses yet — check back soon.</p>
+        </div>
+    </main>
+
+</body>
+</html>

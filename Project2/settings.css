@@ -1,0 +1,507 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+    font-family: 'Inter', sans-serif;
+    background: #F8FAFC;
+    color: #0F172A;
+    min-height: 100vh;
+}
+
+/* Hide global layout nav if loaded on settings page to match clean look */
+nav {
+    display: none !important;
+}
+
+/* ── HIDDEN UTILITY SELECTOR ── 
+   Forces display: none on any dynamically toggled dynamic role-field 
+   so `.field-row { display: flex; }` doesn't override the HTML hidden attribute. */
+[hidden] {
+    display: none !important;
+}
+
+/* ── SIDEBAR (Desktop Left Nav) ── */
+.sidebar {
+    position: fixed;
+    top: 0; left: 0;
+    width: 80px;
+    height: 100vh;
+    background: #2563EB;
+    display: flex; flex-direction: column;
+    align-items: center; padding-top: 28px;
+    gap: 36px; z-index: 99;
+}
+
+.sidebar-link {
+    color: rgba(255, 255, 255, 0.7);
+    display: flex; align-items: center; justify-content: center;
+    width: 44px; height: 44px;
+    border-radius: 10px;
+    text-decoration: none;
+    transition: background 0.2s, color 0.2s;
+    position: relative;
+}
+
+.sidebar-link svg { width: 26px; height: 26px; }
+
+.sidebar-link:hover {
+    background: rgba(255, 255, 255, 0.15);
+    color: #FFFFFF;
+}
+
+.sidebar-link.active {
+    background-color: rgba(255, 255, 255, 0.22);
+    color: #FFFFFF;
+    box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.35);
+}
+
+.sidebar-link::after {
+    content: attr(data-tip);
+    position: absolute; left: 58px;
+    background: #1E293B; color: white;
+    font-size: 12px; padding: 4px 10px;
+    border-radius: 6px; white-space: nowrap;
+    pointer-events: none; opacity: 0;
+    transition: opacity 0.2s; z-index: 200;
+}
+
+.sidebar-link:hover::after { opacity: 1; }
+
+/* ── SETTINGS SUB-NAV (Horizontal Tab Menu) ── */
+.settings-nav {
+    position: fixed;
+    top: 0;
+    left: 80px;
+    right: 0;
+    height: 56px;
+    background: #EFF6FF;
+    border-bottom: 1px solid #E2E8F0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 32px;
+    z-index: 98;
+}
+
+.settings-nav-btn {
+    flex: 1;
+    max-width: 160px;
+    text-align: center;
+    padding: 8px 12px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    background: transparent;
+    color: #475569;
+    font-family: 'Inter', sans-serif;
+    transition: background 0.2s, color 0.2s;
+}
+
+.settings-nav-btn:hover { background: #E2E8F0; color: #0F172A; }
+
+.settings-nav-btn.active {
+    background: #FFFFFF;
+    color: #0F172A;
+    font-weight: 600;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+}
+
+/* ── MAIN CONTENT ── */
+.content {
+    margin-left: 80px;
+    margin-top: 56px;
+    padding: 40px;
+    background: #FFFFFF;
+    min-height: calc(100vh - 56px);
+}
+
+.page-title {
+    font-size: 26px;
+    font-weight: 700;
+    margin-bottom: 28px;
+    color: #0F172A;
+}
+
+/* ── SETTINGS LAYOUT (Content Panel Columns) ── */
+.settings-layout {
+    display: flex;
+    flex-direction: column;
+}
+
+.settings-panel {
+    flex: 1;
+}
+
+.tab-pane { display: none; animation: fadeIn 0.25s ease; }
+.tab-pane.active { display: block; }
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.tab-heading {
+    font-size: 18px;
+    font-weight: 700;
+    margin-bottom: 24px;
+    color: #0F172A;
+}
+
+/* ── PROFILE TAB LAYOUT (Image 2 Columns) ── */
+.settings-content-wrap {
+    display: flex;
+    gap: 40px;
+    align-items: flex-start;
+}
+
+/* Left Column: Avatar Section */
+.avatar-section {
+    flex-shrink: 0;
+}
+
+.avatar-wrap {
+    position: relative;
+    width: 160px; height: 160px;
+}
+
+.avatar-wrap img {
+    width: 160px; height: 160px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid #EFF6FF;
+    background: #EFF6FF;
+    display: block;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+}
+
+.edit-avatar-btn {
+    position: absolute;
+    bottom: 8px; right: 8px;
+    width: 32px; height: 32px;
+    background: white;
+    border: 1px solid #E2E8F0;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    transition: background 0.2s, transform 0.15s;
+    color: #374151;
+}
+
+.edit-avatar-btn svg { width: 15px; height: 15px; }
+.edit-avatar-btn:hover { background: #F1F5F9; transform: scale(1.08); }
+
+/* Right Column: Form Section */
+.form-section {
+    flex-grow: 1;
+    max-width: 600px;
+}
+
+.profile-name {
+    font-size: 26px;
+    font-weight: 700;
+    color: #0F172A;
+    margin-bottom: 24px;
+    display: block !important;
+}
+
+/* ── PROFILE FIELDS ── */
+.profile-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    margin-bottom: 24px;
+}
+
+.field-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.field-row label {
+    width: 100px;
+    flex-shrink: 0;
+    font-size: 14px;
+    font-weight: 500;
+    color: #475569;
+    text-align: left;
+}
+
+/* Wider labels on Desktop specifically for the Security tab to prevent wrap */
+.tab-pane#tab-security .field-row label {
+    width: 150px;
+}
+
+/* Flex grouping to align password fields vertically with strength meters */
+.field-input-group {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    max-width: 400px;
+}
+
+.field-row input,
+.field-row select {
+    flex: 1;
+    padding: 10px 14px;
+    border: 1.5px solid #E2E8F0;
+    border-radius: 12px; /* Perfect rounded borders to match the image precisely */
+    font-size: 14px;
+    font-family: 'Inter', sans-serif;
+    color: #0F172A;
+    background: white;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    max-width: 400px;
+}
+
+.field-row input:focus,
+.field-row select:focus {
+    border-color: #2563EB;
+    box-shadow: 0 0 0 3px rgba(37,99,235,0.08);
+}
+
+.field-row input[readonly] {
+    background: #F1F5F9; /* Disabled style matching the read-only 'Role:' field in image */
+    color: #94A3B8;
+    cursor: not-allowed;
+    border-color: #E2E8F0;
+}
+
+/* ── SAVE CHANGES BUTTON ── */
+.save-btn {
+    background: #2563EB;
+    color: white;
+    border: none;
+    border-radius: 10px;
+    padding: 11px 22px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: 'Inter', sans-serif;
+    transition: background 0.2s;
+}
+
+.save-btn:hover { background: #1D4ED8; }
+
+.save-toast {
+    display: inline-block;
+    margin-left: 16px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #22C55E;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.save-toast.show { opacity: 1; }
+
+/* ── PASSWORD FIELD ── */
+.password-wrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    border: 1.5px solid #E2E8F0;
+    border-radius: 12px; /* Uniform rounded borders matching text inputs */
+    overflow: hidden;
+    background: white;
+    transition: border-color 0.2s;
+    width: 100%;
+}
+
+.password-wrap:focus-within { border-color: #2563EB; }
+
+.password-wrap input {
+    flex: 1; padding: 10px 14px;
+    border: none; outline: none;
+    font-size: 14px; font-family: 'Inter', sans-serif;
+    color: #0F172A; background: transparent;
+}
+
+.eye-btn {
+    padding: 0 12px; background: none; border: none;
+    cursor: pointer; color: #94A3B8;
+    display: flex; align-items: center;
+}
+
+.eye-btn svg { width: 18px; height: 18px; }
+
+/* Strength bar */
+.strength-bar {
+    height: 5px; background: #E2E8F0; border-radius: 99px;
+    margin-top: 8px; overflow: hidden; width: 100%;
+}
+
+.strength-fill {
+    height: 100%; border-radius: 99px; width: 0%;
+    transition: width 0.4s, background 0.4s;
+}
+
+.strength-label {
+    font-size: 12px; font-weight: 600;
+    margin-top: 4px; display: block;
+}
+
+/* ── TOGGLE SWITCH ── */
+.toggle-list { display: flex; flex-direction: column; gap: 0; margin-bottom: 28px; }
+
+.toggle-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 18px 0;
+    border-bottom: 1px solid #F1F5F9;
+}
+
+.toggle-row:last-child { border-bottom: none; }
+
+.toggle-label { font-size: 15px; font-weight: 600; color: #0F172A; margin-bottom: 3px; }
+.toggle-desc  { font-size: 13px; color: #94A3B8; }
+
+.toggle-switch { position: relative; display: inline-block; width: 46px; height: 26px; flex-shrink: 0; }
+
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+
+.slider {
+    position: absolute; inset: 0;
+    background: #CBD5E1; border-radius: 99px;
+    cursor: pointer; transition: background 0.3s;
+}
+
+.slider::before {
+    content: '';
+    position: absolute;
+    width: 20px; height: 20px;
+    left: 3px; bottom: 3px;
+    background: white; border-radius: 50%;
+    transition: transform 0.3s;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+}
+
+.toggle-switch input:checked + .slider { background: #2563EB; }
+.toggle-switch input:checked + .slider::before { transform: translateX(20px); }
+
+/* ── DANGER ZONE ── */
+.danger-zone {
+    margin-top: 36px; padding: 20px;
+    border: 1px solid #FEE2E2;
+    border-radius: 12px; background: #FFF5F5;
+}
+
+.danger-zone h4 { font-size: 15px; font-weight: 700; color: #DC2626; margin-bottom: 14px; }
+
+.danger-btn {
+    background: #EF4444; color: white;
+    border: none; border-radius: 8px;
+    padding: 10px 22px;
+    font-size: 14px; font-weight: 600;
+    cursor: pointer; font-family: 'Inter', sans-serif;
+    transition: background 0.2s;
+}
+
+.danger-btn:hover { background: #DC2626; }
+
+/* ── RESPONSIVE MOBILE VIEW ── */
+@media (max-width: 640px) {
+    /* Main container settings */
+    .content {
+        margin-left: 0;
+        margin-top: 56px;
+        padding: 24px 16px 88px; /* prevents layout from overlapping the bottom bar */
+    }
+
+    /* Standard Tab Navigation at the top of the mobile screen */
+    .settings-nav {
+        left: 0;
+        padding: 0 12px;
+        background: #F1F5F9;
+    }
+
+    /* Column wrap on mobile */
+    .settings-content-wrap {
+        flex-direction: column;
+        gap: 20px;
+        align-items: flex-start;
+    }
+
+    /* Stacked Form Fields */
+    .field-row {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 6px;
+    }
+
+    .field-row label {
+        width: auto !important;
+        padding-top: 0;
+    }
+
+    .field-input-group {
+        max-width: none;
+    }
+
+    .profile-name {
+        font-size: 22px;
+        margin-bottom: 16px;
+    }
+
+    /* ── MOBILE BOTTOM NAVIGATION BAR ── */
+    .sidebar {
+        position: fixed;
+        top: auto; bottom: 0; left: 0; right: 0;
+        width: 100%; height: 62px;
+        background: #2563EB;
+        flex-direction: row;
+        justify-content: space-around;
+        align-items: center;
+        padding: 0 8px; gap: 0;
+        border-radius: 20px 20px 0 0;
+        box-shadow: 0 -4px 24px rgba(37, 99, 235, 0.22);
+        z-index: 999;
+    }
+
+    .sidebar-link {
+        flex: 1; 
+        height: 50px;
+        flex-direction: column;
+        gap: 3px;
+        border-radius: 12px;
+        color: rgba(255, 255, 255, 0.7);
+        transition: background 0.2s, color 0.2s;
+        max-width: none;
+    }
+
+    .sidebar-link svg { 
+        width: 22px; 
+        height: 22px; 
+    }
+
+    /* Convert standard desktop tooltips to visible bottom labels on mobile */
+    .sidebar-link::before {
+        content: attr(data-tip);
+        font-size: 10px; 
+        font-weight: 600;
+        font-family: 'Inter', sans-serif;
+        line-height: 1; 
+        order: 2; 
+        opacity: 0.8;
+        transition: opacity 0.2s;
+    }
+
+    /* Hide standard hover-based desktop tooltips */
+    .sidebar-link::after { 
+        display: none; 
+    }
+
+    .sidebar-link.active::before,
+    .sidebar-link:hover::before {
+        opacity: 1;
+    }
+
+    .sidebar-link:hover,
+    .sidebar-link.active {
+        background-color: rgba(255, 255, 255, 0.15);
+        color: #FFFFFF;
+        box-shadow: none;
+    }
+}
