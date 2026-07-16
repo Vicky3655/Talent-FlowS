@@ -14,8 +14,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
    Supabase dashboard → Project Settings → API. The anon key is
    safe to expose client-side — it only grants what the Row
    Level Security policies (see the SQL schema) allow. ──────── */
-const SUPABASE_URL = 'https://YOUR-PROJECT-REF.supabase.co';
-const SUPABASE_ANON_KEY = 'YOUR-ANON-PUBLIC-KEY';
+const SUPABASE_URL = 'https://ontaucdcmrkyvpflxtti.supabase.co/rest/v1/';
+const SUPABASE_ANON_KEY = 'sb_publishable_x-zRHHlxLCq1gh28aTv-0w_kht1wDxa';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
