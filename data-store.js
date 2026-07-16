@@ -1,156 +1,175 @@
 /* ============================================================
-   TALENT FLOW  |  data-store.js
+   TALENT FLOW  |  data-store.js  (Supabase)
    ------------------------------------------------------------
-   Firestore persistence for Courses, Instructor Assignments, and
-   the student-facing course catalog.
+   Reuses the Supabase client auth.js already created, via
+   window.TalentFlowAuth.supabase — so auth.js must load first,
+   same as before.
 
-   This does NOT call initializeApp() — it reuses the exact
-   Firebase app/db instance auth.js already created, via
-   window.TalentFlowAuth.db. That means auth.js MUST be loaded
-   (as a <script type="module">) before this file on every page,
-   AND this file itself must be loaded with <script type="module">
-   too (it uses import statements).
-
-   Exposes window.TalentFlowData, which courses.js,
-   instructor-assignments.js, and student-courses.js call into.
-   None of those files need to import Firebase directly, or even
-   be a module — they just read window.TalentFlowData like any
-   other global.
+   Exposes window.TalentFlowData with the exact same method
+   names/shapes as the old Firestore version, so courses.js,
+   instructor-assignments.js, and student-courses.js need no
+   changes at all.
    ============================================================ */
 
-import {
-  collection,
-  doc,
-  getDoc,
-  getDocs,
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  query,
-  where,
-  serverTimestamp,
-} from 'https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js';
+const supabase = window.TalentFlowAuth.supabase;
 
-const db = window.TalentFlowAuth.db;
+/* ── COURSES ─────────────────────────────────────────────── */
 
-/* ── COURSES ──────────────────────────────────────────────────
-   Collection: courses/{courseId}
-   Fields: instructorId, title, desc, thumb, alt, lessons, status,
-           notify, materials[], createdAt, updatedAt
-   Materials stay as an array field on the course doc itself —
-   there's no separate collection for them, since a course only
-   ever has a handful and they're always read together with it. */
+function mapCourseRow(c) {
+  return {
+    id: c.id,
+    instructorId: c.instructor_id,
+    title: c.title,
+    desc: c.description,
+    thumb: c.thumb,
+    alt: c.alt,
+    lessons: c.lessons,
+    status: c.status,
+    notify: c.notify,
+    materials: c.materials || [],
+  };
+}
 
 async function getCourses(instructorId) {
-  const q = query(collection(db, 'courses'), where('instructorId', '==', instructorId));
-  const snap = await getDocs(q);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const { data, error } = await supabase
+    .from('courses')
+    .select('*')
+    .eq('instructor_id', instructorId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data || []).map(mapCourseRow);
 }
 
-// Pass an existing courseId to update that course. Omit it (or pass
-// null) to create a new one — returns the new doc's id either way.
 async function saveCourse(instructorId, courseData, courseId = null) {
+  const payload = {
+    title: courseData.title,
+    description: courseData.desc,
+    thumb: courseData.thumb,
+    alt: courseData.alt,
+    lessons: courseData.lessons,
+    status: courseData.status,
+    notify: courseData.notify,
+    materials: courseData.materials || [],
+  };
+
   if (courseId) {
-    await updateDoc(doc(db, 'courses', courseId), {
-      ...courseData,
-      updatedAt: serverTimestamp(),
-    });
+    const { error } = await supabase.from('courses').update(payload).eq('id', courseId);
+    if (error) throw error;
     return courseId;
   }
-  const ref = await addDoc(collection(db, 'courses'), {
-    ...courseData,
-    instructorId,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
-  return ref.id;
+
+  const { data, error } = await supabase
+    .from('courses')
+    .insert({ ...payload, instructor_id: instructorId })
+    .select('id')
+    .single();
+  if (error) throw error;
+  return data.id;
 }
 
-// Materials are a full array overwrite — simplest correct option given
-// how small this array stays (a handful of files per course).
 async function updateCourseMaterials(courseId, materials) {
-  await updateDoc(doc(db, 'courses', courseId), {
-    materials,
-    updatedAt: serverTimestamp(),
-  });
+  const { error } = await supabase.from('courses').update({ materials }).eq('id', courseId);
+  if (error) throw error;
 }
 
-/* ── STUDENT-FACING CATALOG ───────────────────────────────────
-   Every published course, across every instructor, with each
-   instructor's public name/photo joined in from publicProfiles/
-   so a course card can show "taught by …" without needing a
-   separate read per card in the UI layer. Draft courses never
-   come back from this query — that's what keeps them invisible
-   to students until an instructor publishes. */
+/* ── STUDENT-FACING CATALOG ──────────────────────────────────
+   Published courses, joined with each instructor's public
+   name/photo from the public_profiles view — the Postgres
+   equivalent of the old publicProfiles mirror, except it's a
+   live view instead of a manually-synced copy. */
 
 async function getPublishedCourses() {
-  const q = query(collection(db, 'courses'), where('status', '==', 'published'));
-  const snap = await getDocs(q);
-  const courses = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const { data: courses, error } = await supabase
+    .from('courses')
+    .select('*')
+    .eq('status', 'published')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
 
-  const instructorIds = [...new Set(courses.map(c => c.instructorId).filter(Boolean))];
-  const profiles = {};
-  await Promise.all(instructorIds.map(async (id) => {
-    try {
-      const pSnap = await getDoc(doc(db, 'publicProfiles', id));
-      if (pSnap.exists()) profiles[id] = pSnap.data();
-    } catch (err) {
-      console.error('Could not load instructor profile for', id, err);
-    }
-  }));
+  const instructorIds = [...new Set((courses || []).map(c => c.instructor_id).filter(Boolean))];
+  const profilesById = {};
 
-  const enriched = courses.map(c => {
-    const p = profiles[c.instructorId] || {};
+  if (instructorIds.length) {
+    const { data: profiles, error: pErr } = await supabase
+      .from('public_profiles')
+      .select('id, full_name, avatar')
+      .in('id', instructorIds);
+    if (pErr) console.error('Could not load instructor profiles for course catalog:', pErr);
+    (profiles || []).forEach((p) => { profilesById[p.id] = p; });
+  }
+
+  return (courses || []).map((c) => {
+    const p = profilesById[c.instructor_id] || {};
     return {
-      ...c,
-      instructorName: p.fullName || c.instructorName || 'Talent Flow Instructor',
-      instructorAvatar: p.avatar || c.instructorAvatar || '',
+      ...mapCourseRow(c),
+      instructorName: p.full_name || 'Talent Flow Instructor',
+      instructorAvatar: p.avatar || '',
     };
   });
-
-  enriched.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-  return enriched;
 }
 
-/* ── INSTRUCTOR ASSIGNMENTS ───────────────────────────────────
-   Collection: assignments/{assignmentId}
-   Fields: instructorId, title, course, instructions, dueDate,
-           maxScore, assignTo, status, submissions[], createdAt, updatedAt
-   Same reasoning for submissions as materials above: they live on
-   the assignment doc as an array, not a subcollection. */
+/* ── INSTRUCTOR ASSIGNMENTS ──────────────────────────────────── */
+
+function mapAssignmentRow(a) {
+  return {
+    id: a.id,
+    instructorId: a.instructor_id,
+    title: a.title,
+    course: a.course,
+    instructions: a.instructions,
+    dueDate: a.due_date,
+    maxScore: a.max_score,
+    assignTo: a.assign_to,
+    status: a.status,
+    submissions: a.submissions || [],
+  };
+}
 
 async function getAssignments(instructorId) {
-  const q = query(collection(db, 'assignments'), where('instructorId', '==', instructorId));
-  const snap = await getDocs(q);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const { data, error } = await supabase
+    .from('assignments')
+    .select('*')
+    .eq('instructor_id', instructorId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data || []).map(mapAssignmentRow);
 }
 
 async function saveAssignment(instructorId, assignmentData, assignmentId = null) {
+  const payload = {
+    title: assignmentData.title,
+    course: assignmentData.course,
+    instructions: assignmentData.instructions,
+    due_date: assignmentData.dueDate,
+    max_score: assignmentData.maxScore,
+    assign_to: assignmentData.assignTo,
+    status: assignmentData.status,
+  };
+  if (assignmentData.submissions !== undefined) payload.submissions = assignmentData.submissions;
+
   if (assignmentId) {
-    await updateDoc(doc(db, 'assignments', assignmentId), {
-      ...assignmentData,
-      updatedAt: serverTimestamp(),
-    });
+    const { error } = await supabase.from('assignments').update(payload).eq('id', assignmentId);
+    if (error) throw error;
     return assignmentId;
   }
-  const ref = await addDoc(collection(db, 'assignments'), {
-    ...assignmentData,
-    instructorId,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
-  return ref.id;
+
+  const { data, error } = await supabase
+    .from('assignments')
+    .insert({ ...payload, instructor_id: instructorId })
+    .select('id')
+    .single();
+  if (error) throw error;
+  return data.id;
 }
 
 async function deleteAssignmentDoc(assignmentId) {
-  await deleteDoc(doc(db, 'assignments', assignmentId));
+  const { error } = await supabase.from('assignments').delete().eq('id', assignmentId);
+  if (error) throw error;
 }
 
 async function updateSubmissions(assignmentId, submissions) {
-  await updateDoc(doc(db, 'assignments', assignmentId), {
-    submissions,
-    updatedAt: serverTimestamp(),
-  });
+  const { error } = await supabase.from('assignments').update({ submissions }).eq('id', assignmentId);
+  if (error) throw error;
 }
 
 /* ── PUBLIC INTERFACE ─────────────────────────────────────── */
