@@ -1,0 +1,80 @@
+body{
+    background-color: #f0f0f0;
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 20px;
+    text-align: center;
+    justify-items: center;
+    
+  
+}
+section{
+    flex-wrap: wrap;
+    background-color: antiquewhite;
+    box-sizing: content-box;
+    box-shadow: #333;
+    justify-items: center;
+    align-items: center;
+    display: flex;
+    flex-direction: column;
+    gap: 30px;
+    border: none;
+    border-radius: 40px;
+    max-width: 1000px;
+    width: auto;
+    padding: 20px 60px;
+    margin-top: 150px;
+    perspective: 1000px;
+}
+label{
+    color: rgb(185, 108, 13);
+    font-weight: 900;
+    font-family: 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
+}
+input{
+    border: none;
+    border-radius: 5px;
+    background-color: aquamarine;
+    height: 30px;
+    width: 400px;
+}
+h1 {
+    color: #333;
+    justify-content: center;
+    text-align: center;
+    text-transform: uppercase;
+    display: flex;
+    flex-wrap: wrap;
+}
+button{
+    padding: 0.75em 1.5em;
+    background: linear-gradient(135deg, rgb(185, 108, 13) 0%, rgb(160, 90, 10) 100%);
+    color: #f0f0f0;
+    text-transform: italic;
+    cursor: pointer;
+    border: none;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    border-radius: 0.75em;
+    position: relative;
+    overflow: hidden;
+}
+.button_top{
+    display: block;
+    box-sizing: border-box;
+    border: 2px solid black;
+    transition: all 0.3s ease;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+.button_top:hover{
+    transform: translateY(-0.33em) scale(1.05);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.3);
+}
+.button_top:active{
+    transform: translateY(0) scale(0.98);
+}
+.button_top:focus{
+    outline: 2px solid #fff;
+    outline-offset: 2px;
+}
+
+

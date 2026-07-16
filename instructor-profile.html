@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="profile.css">
+    <script type="module" src="auth.js"></script>
+    <script src="profile.js" defer></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
+    <title>Instructor Profile — Talent Flow</title>
+</head>
+<body data-profile-page="instructor">
+
+    <header class="topbar">
+        <span class="brand">Talent Flow</span>
+        <div class="topbar-actions">
+            <div class="avatar" style="margin-right:4px">
+                <img id="nav-avatar-img" src="" alt="Profile">
+            </div>
+            <span class="role-badge" id="roleBadge">Instructor</span>
+            <button type="button" class="btn-link" id="logoutBtn">Log Out</button>
+        </div>
+    </header>
+
+    <main class="profile-shell">
+
+        <!-- ── VIEW MODE ───────────────────────────────────────── -->
+        <section class="profile-view" id="profileView" hidden>
+            <div class="profile-card">
+                <div class="profile-card-banner"></div>
+                <div class="profile-card-main">
+                    <img class="profile-avatar" id="viewAvatar" src="" alt="Profile photo">
+                    <h1 class="profile-name" id="viewName"></h1>
+                    <p class="profile-title" id="viewTitle"></p>
+                    <p class="profile-bio" id="viewBio"></p>
+
+                    <div class="profile-meta-grid">
+                        <div class="meta-item">
+                            <span class="meta-label">Experience</span>
+                            <span class="meta-value" id="viewExperience"></span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Email</span>
+                            <span class="meta-value" id="viewEmail"></span>
+                        </div>
+                    </div>
+
+                    <div class="profile-tags" id="viewExpertise"></div>
+
+                    <div class="profile-section">
+                        <h3>Education &amp; Certifications</h3>
+                        <p id="viewEducation"></p>
+                    </div>
+
+                    <div class="profile-links" id="viewLinks"></div>
+
+                    <div class="profile-actions">
+                        <button type="button" class="btn-primary" id="editProfileBtn">Edit Profile</button>
+                    </div>
+                </div>
+            </div>
+            <a class="profile-continue" href="courses.html">Continue to Courses →</a>
+        </section>
+
+        <!-- ── FORM / FILL MODE ────────────────────────────────── -->
+        <section id="profileFormSection" hidden>
+            <div class="form-card">
+                <h1>Complete Your Instructor Profile</h1>
+                <p class="form-sub">These details will be shown on your public instructor profile so students know who they're learning from.</p>
+
+                <form id="profileForm">
+                    <div class="avatar-field">
+                        <img class="avatar-preview" id="avatarPreview" src="" alt="Avatar preview">
+                        <label class="avatar-upload-btn" for="avatarInput">Upload Photo</label>
+                        <input type="file" id="avatarInput" accept="image/*" hidden>
+                    </div>
+
+                    <label for="fullName">Full Name</label>
+                    <input type="text" id="fullName" placeholder="e.g. Dr. Amara Eze">
+
+                    <label for="title">Professional Title</label>
+                    <input type="text" id="title" placeholder="e.g. Senior Data Science Instructor">
+
+                    <label for="bio">About You</label>
+                    <textarea id="bio" rows="4" placeholder="Tell students about your background, teaching style, and what you're passionate about…"></textarea>
+
+                    <label for="expertise">Areas of Expertise</label>
+                    <input type="text" id="expertise" placeholder="e.g. Python, Machine Learning, Data Visualization">
+                    <p class="form-hint">Separate each skill with a comma.</p>
+
+                    <label for="experience">Years of Experience</label>
+                    <input type="number" id="experience" min="0" max="60" placeholder="e.g. 6">
+
+                    <label for="education">Education &amp; Certifications</label>
+                    <textarea id="education" rows="3" placeholder="e.g. PhD in Computer Science — Stanford University"></textarea>
+
+                    <div class="form-row">
+                        <div>
+                            <label for="linkedin">LinkedIn</label>
+                            <input type="url" id="linkedin" placeholder="https://linkedin.com/in/…">
+                        </div>
+                        <div>
+                            <label for="website">Website</label>
+                            <input type="url" id="website" placeholder="https://…">
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn-primary full">Save Profile</button>
+                </form>
+            </div>
+        </section>
+
+    </main>
+
+    <script src="nav-avatar.js"></script>
+</body>
+</html>

@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="page.css">
+    <script src="script.js" defer></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
+    <title>Talent Flow</title>
+</head>
+
+<body>
+    <!-- Loader Container -->
+    <div id="loader">
+        <div class="logo-wrapper">
+            <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="loader-icon">
+                <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/>
+            </svg>
+            <span class="loader-text">Talent Flow</span>
+        </div>
+    </div>
+    
+    <section id="view-splash" class="view active">
+    </section>
+</body>
+
+<script>
+window.addEventListener("load", () => {
+    // Keep it visible for 2 seconds so people actually see your logo
+    setTimeout(() => {
+        document.body.classList.add("loaded");
+    }, 2000); 
+    setTimeout(() => {
+        window.location.href = "register.html"; 
+    }, 2000);
+});
+</script>
+</html>

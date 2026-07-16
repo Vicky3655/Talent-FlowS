@@ -1,0 +1,243 @@
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+[hidden] { display: none !important; }
+
+body {
+    font-family: 'Inter', sans-serif; /* */
+    background-color: #FFFFFF;
+    color: #0F172A; /* Your Neutral 1 */
+}
+
+/* Layout Container */
+.welcome-container {
+    display: flex;
+    min-height: 100vh;
+    align-items: center;
+}
+
+/* Left Side: Illustration */
+.image {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background-color: #FFFFFF; 
+}
+
+.welcome-image {
+    max-width: 90%;
+    height: auto;
+}
+
+/* Right Side: Form Area */
+.welcome {
+    flex: 1;
+    padding: 40px 80px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.welcome-text h1 {
+    font-size: 32px;
+    font-weight: 700;
+    margin-bottom: 30px;
+    text-align: center;
+}
+.subtitle {
+     font-size: 20px;
+     font-weight: 700;
+     margin-bottom: 30px;
+     text-align: center;
+     color: #0F172A;
+}
+
+/* Form Styling */
+form {
+    display: flex;
+    flex-direction: column;
+}
+
+label {
+    font-weight: 600;
+    font-size: 14px;
+    margin-bottom: 8px;
+    color: #0F172A;
+}
+
+input, select {
+    width: 100%;
+    padding: 12px 16px;
+    margin-bottom: 20px;
+    border: 1.5px solid #2563EB; /* Your Primary Blue */
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: 'Inter', sans-serif;
+    outline: none;
+}
+
+input::placeholder {
+    color: #64748B; /* Your Neutral 2 */
+    opacity: 0.5;
+}
+
+/* ── Password field with show/hide eye toggle ───────────── */
+.password-wrap {
+    position: relative;
+    margin-bottom: 22px;
+}
+.password-wrap input {
+    margin-bottom: 0;
+    padding-right: 46px;
+}
+
+/* ── Password strength warning ──────────────────────────── */
+.password-strength-warning {
+    margin-top: -14px;
+    margin-bottom: 20px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #DC2626;
+    line-height: 1.4;
+}
+.toggle-password {
+    position: absolute;
+    top: 50%;
+    right: 6px;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    background: none;
+    border: none;
+    border-radius: 6px;
+    color: #64748B;
+    cursor: pointer;
+    transition: color 0.2s ease, background-color 0.2s ease;
+}
+.toggle-password:hover {
+    color: #2563EB;
+    background-color: rgba(37, 99, 235, 0.08);
+}
+.toggle-password svg {
+    width: 20px;
+    height: 20px;
+    display: block;
+}
+.toggle-password .icon-eye-off { display: none; }
+.toggle-password.is-visible .icon-eye { display: none; }
+.toggle-password.is-visible .icon-eye-off { display: block; }
+
+/* Button Styling */
+.sign {
+    width: 100%;
+    padding: 14px;
+    background-color: #2563EB; /* */
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 20px;
+    transition: background 0.3s ease;
+}
+
+.sign:hover {
+    background-color: #1d4ed8;
+}
+
+p {
+    text-align: center;
+    margin-top: 25px;
+    font-size: 14px;
+    color: #64748B;
+}
+
+p a {
+    color: #2563EB;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+/* ── "Or continue with" divider above the Google button ── */
+.dd {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 30px;
+    color: #94A3B8;
+    font-size: 12.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+.dd::before,
+.dd::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background-color: #E2E8F0;
+}
+
+/* ── Social sign-in row ──────────────────────────────────── */
+.logs {
+    display: flex;
+    margin-top: 18px;
+    justify-content: center;
+    align-items: center;
+}
+
+/* ── Google sign-in button ───────────────────────────────── */
+.google-placeholder-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    height: 46px;
+    padding: 0 20px;
+    background-color: #FFFFFF;
+    border: 1.5px solid #CBD5E1;
+    border-radius: 999px;
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: #0F172A;
+    cursor: pointer;
+    transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.google-placeholder-btn:hover {
+    background-color: #F8FAFC;
+    border-color: #2563EB;
+    box-shadow: 0 2px 10px rgba(37, 99, 235, 0.15);
+}
+.google-placeholder-btn:active {
+    transform: scale(0.98);
+}
+.google-placeholder-btn svg {
+    flex-shrink: 0;
+}
+
+/* Responsive Design for Mobile */
+@media (max-width: 900px) {
+    .welcome-container {
+        flex-direction: column;
+    }
+
+    .image {
+        display: none; 
+    }
+
+    .welcome {
+        padding: 40px 20px;
+        width: 100%;
+    }
+}

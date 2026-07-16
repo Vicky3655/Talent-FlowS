@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="choose-role.css">
+    <script type="module" src="auth.js"></script>
+    <script src="choose-role.js" defer></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
+    <title>Choose Your Role — Talent Flow</title>
+</head>
+<body>
+    <main class="role-shell">
+        <div class="role-card-outer">
+            <h1>How will you use Talent Flow?</h1>
+            <p class="role-sub">Pick whichever fits — you'll set up the rest of your profile right after.</p>
+
+            <div class="role-picker" role="radiogroup" aria-labelledby="roleFormLabel">
+
+                <input type="radio" class="role-radio" id="roleInstructor" name="role" value="Instructor">
+                <label for="roleInstructor" class="role-card">
+                    <span class="role-card-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <rect x="3" y="4" width="18" height="12" rx="1.6"/>
+                            <path d="M7.5 9.5 10 11l-2.5 1.5M12.5 11h4"/>
+                            <path d="M8 20h8M12 16v4"/>
+                        </svg>
+                    </span>
+                    <span class="role-card-title">Instructor</span>
+                    <span class="role-card-desc">Create &amp; teach courses</span>
+                </label>
+
+                <input type="radio" class="role-radio" id="roleStudent" name="role" value="Student">
+                <label for="roleStudent" class="role-card">
+                    <span class="role-card-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M12 3 2 8l10 5 10-5-10-5Z"/>
+                            <path d="M6 10.5V16c0 1 2.5 2.5 6 2.5s6-1.5 6-2.5v-5.5"/>
+                            <path d="M22 8v6"/>
+                        </svg>
+                    </span>
+                    <span class="role-card-title">Student</span>
+                    <span class="role-card-desc">Learn new skills</span>
+                </label>
+
+            </div>
+
+            <p class="role-status" id="roleStatus" hidden>Setting you up…</p>
+
+            <button type="button" class="btn-text-muted" id="logoutLink">Not you? Log out</button>
+        </div>
+    </main>
+</body>
+</html>

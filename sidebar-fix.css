@@ -1,0 +1,126 @@
+/* ============================================================
+   TALENT FLOW — Sidebar Responsive Layout Fix
+   sidebar-fix.css
+   ------------------------------------------------------------
+   Resolves desktop layout overflows (overlapping icons, giant 
+   logos, and wrapping labels) while preserving the bottom-nav
+   mobile view defined in instructor-assignments.css.
+   ============================================================ */
+
+/* ─── DESKTOP VIEWPORT (Wide Screen Layout) ────────────────── */
+@media (min-width: 769px) {
+    /* Hide mobile drawer headings, sections, text nodes, and footers */
+    .sidebar .sidebar-header,
+    .sidebar .sb-section,
+    .sidebar .sb-label,
+    .sidebar .sb-footer {
+        display: none !important;
+    }
+
+    /* Force desktop sidebar to display as a vertical strip */
+    .sidebar {
+        display: flex !important;
+        flex-direction: column !important;
+        width: 68px !important;
+        height: calc(100vh - 64px) !important;
+        top: 64px !important;
+        left: 0 !important;
+        bottom: auto !important;
+        right: auto !important;
+        padding-top: 28px !important;
+        gap: 36px !important;
+        border-radius: 0 !important;
+        box-shadow: none !important;
+    }
+
+    /* Center icons within desktop links */
+    .sidebar-link {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 46px !important;
+        height: 46px !important;
+    }
+
+    /* Enable tooltips on hover */
+    .sidebar-link::after {
+        content: attr(data-tip) !important;
+        position: absolute !important;
+        left: 60px !important;
+        background: #0F172A !important; /* var(--slate-9) fallback */
+        color: white !important;
+        font-size: 12px !important;
+        font-weight: 600 !important;
+        padding: 5px 10px !important;
+        border-radius: 8px !important;
+        white-space: nowrap !important;
+        pointer-events: none !important;
+        opacity: 0 !important;
+        transition: opacity 0.18s !important;
+        z-index: 300 !important;
+        display: block !important;
+    }
+
+    .sidebar-link:hover::after {
+        opacity: 1 !important;
+    }
+}
+
+/* ─── MOBILE VIEWPORT (Bottom Nav Bar Layout) ─────────────── */
+@media (max-width: 768px) {
+    /* Hide structural vertical elements not fitting in a bottom bar */
+    .sidebar .sidebar-header,
+    .sidebar .sb-section,
+    .sidebar .sb-footer,
+    .sidebar .sb-label {
+        display: none !important;
+    }
+
+    /* Match horizontal flex bottom-nav parameters */
+    .sidebar {
+        top: auto !important;
+        left: 0 !important;
+        bottom: 0 !important;
+        right: 0 !important;
+        width: 100% !important;
+        height: 62px !important;
+        flex-direction: row !important;
+        align-items: center !important;
+        justify-content: space-around !important;
+        padding: 0 8px !important;
+        gap: 0 !important;
+        border-top: none !important;
+        border-radius: 20px 20px 0 0 !important;
+        box-shadow: 0 -4px 24px rgba(37, 99, 235, 0.22) !important;
+        transform: none !important;
+        z-index: 200 !important;
+    }
+
+    /* Restyle link parameters to sit neatly in a flex row */
+    .sidebar-link {
+        flex: 1 !important;
+        height: 50px !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 3px !important;
+    }
+
+    /* Hide standard tooltip popups on mobile */
+    .sidebar-link::after {
+        display: none !important;
+    }
+
+    /* Use attributes to inject readable labels below the icon */
+    .sidebar-link::before {
+        content: attr(data-tip) !important;
+        font-size: 10px !important;
+        font-weight: 600 !important;
+        font-family: 'Plus Jakarta Sans', sans-serif !important;
+        line-height: 1 !important;
+        order: 2 !important;
+        opacity: 0.8 !important;
+        display: block !important;
+    }
+}

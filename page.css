@@ -1,0 +1,106 @@
+#loader {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100vh;
+    background: #F8FAFC; /* Light neutral background */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+    transition: opacity 0.6s ease-in-out, visibility 0.6s;
+}
+
+.logo-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 15px;
+    animation: fadeInPulse 1.5s ease-in-out infinite;
+}
+
+.loader-icon, .loader-text {
+    color: #2563EB;
+    height: auto;
+}
+
+.loader-text {
+    font-size: 50px;
+    font-weight: 700;
+    font-family: 'Inter', sans-serif;
+}
+
+/* Entrance Animation */
+@keyframes fadeInPulse {
+    0% { opacity: 0.5; transform: scale(0.98); }
+    50% { opacity: 1; transform: scale(1); }
+    100% { opacity: 0.5; transform: scale(0.98); }
+}
+
+/* State when loading is finished */
+.loaded #loader {
+    opacity: 0;
+    visibility: hidden;
+}
+
+.logo-container {
+    display: flex;
+    align-items: center;
+    gap: 12px; /* Spacing between icon and text */
+    font-family: 'Inter', sans-serif;
+}
+
+.logo-icon {
+    color: #2563EB; /* Primary blue */
+    animation: pulse 2s ease-in-out infinite;
+}
+
+.logo-text {
+    color: #2563EB;
+    font-size: 28px; /* Adjusted for a clear heading */
+    font-weight: 600; /* Semi-bold professional SaaS look */
+    letter-spacing: -0.02em; /* Tightens the text slightly */
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.1); opacity: 0.7; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+
+/* ── MOBILE RESPONSIVE ADAPTATIONS (Mobile View Only) ── */
+@media (max-width: 480px) {
+    /* Spacing adjustments on mobile loaders to prevent horizontal clipping */
+    .logo-wrapper {
+        gap: 10px; 
+    }
+
+    /* Scales down the loader SVG icon proportionally */
+    .loader-icon {
+        width: 32px !important;
+        height: 32px !important;
+    }
+
+    /* Scales down the loader font size and locks it to a single line */
+    .loader-text {
+        font-size: 32px;
+        letter-spacing: -0.019em;
+        white-space: nowrap; 
+    }
+
+    /* Responsive scaling for structural brand containers (e.g. headers/sidebars) */
+    .logo-container {
+        gap: 8px;
+    }
+
+    .logo-icon {
+        width: 22px !important;
+        height: 22px !important;
+    }
+
+    .logo-text {
+        font-size: 20px;
+        letter-spacing: -0.015em;
+    }
+}

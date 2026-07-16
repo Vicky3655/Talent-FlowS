@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="profile.css">
+    <!-- Integration styles: profile tags & social links rendered by profile.js -->
+    <style>
+        .profile-tag {
+            display: inline-block;
+            padding: 5px 14px;
+            background: #EFF6FF;
+            color: #2563EB;
+            border-radius: 999px;
+            font-size: 13px;
+            font-weight: 600;
+            margin: 4px 4px 0 0;
+        }
+        .profile-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            color: #2563EB;
+            font-size: 14px;
+            font-weight: 500;
+            text-decoration: none;
+            padding: 7px 14px;
+            border: 1.5px solid #BFDBFE;
+            border-radius: 8px;
+            margin: 4px 8px 0 0;
+            transition: background 0.18s;
+        }
+        .profile-link:hover { background: #EFF6FF; }
+    </style>
+    <script type="module" src="auth.js"></script>
+    <script src="profile.js" defer></script>
+    <script src="nav-avatar.js" defer></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
+    <title>Student Profile — Talent Flow</title>
+</head>
+<body data-profile-page="student">
+
+    <header class="topbar">
+        <span class="brand">Talent Flow</span>
+        <div class="topbar-actions">
+            <div class="avatar" style="margin-right:4px">
+                <img id="nav-avatar-img" src="" alt="Profile" style="width:36px;height:36px;border-radius:50%;object-fit:cover;border:2px solid #e2e8f0;display:block;">
+            </div>
+            <span class="role-badge" id="roleBadge">Student</span>
+            <button type="button" class="btn-link" id="logoutBtn">Log Out</button>
+        </div>
+    </header>
+
+    <main class="profile-shell">
+
+        <!-- ── VIEW MODE ───────────────────────────────────────── -->
+        <section class="profile-view" id="profileView" hidden>
+            <div class="profile-card">
+                <div class="profile-card-banner"></div>
+                <div class="profile-card-main">
+                    <img class="profile-avatar" id="viewAvatar" src="" alt="Profile photo">
+                    <h1 class="profile-name" id="viewName"></h1>
+                    <p class="profile-title" id="viewTitle"></p>
+                    <p class="profile-bio" id="viewBio"></p>
+
+                    <div class="profile-meta-grid">
+                        <div class="meta-item">
+                            <span class="meta-label">Field of Study</span>
+                            <span class="meta-value" id="viewExperience"></span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Email</span>
+                            <span class="meta-value" id="viewEmail"></span>
+                        </div>
+                    </div>
+
+                    <div class="profile-tags" id="viewExpertise"></div>
+
+                    <div class="profile-section">
+                        <h3>Learning Goals</h3>
+                        <p id="viewEducation"></p>
+                    </div>
+
+                    <div class="profile-links" id="viewLinks"></div>
+
+                    <div class="profile-actions">
+                        <button type="button" class="btn-primary" id="editProfileBtn">Edit Profile</button>
+                    </div>
+                </div>
+            </div>
+            <a class="profile-continue" href="student-courses.html">Continue to Courses →</a>
+        </section>
+
+        <!-- ── FORM / FILL MODE ────────────────────────────────── -->
+        <section id="profileFormSection">
+            <div class="form-card">
+                <h1>Complete Your Student Profile</h1>
+                <p class="form-sub">Tell instructors a bit about yourself so your learning experience can be tailored to you.</p>
+
+                <form id="profileForm">
+                    <div class="avatar-field">
+                        <img class="avatar-preview" id="avatarPreview" src="" alt="Avatar preview">
+                        <label class="avatar-upload-btn" for="avatarInput">Upload Photo</label>
+                        <input type="file" id="avatarInput" accept="image/*" hidden>
+                    </div>
+
+                    <label for="fullName">Full Name</label>
+                    <input type="text" id="fullName" placeholder="e.g. Chidi Okafor">
+
+                    <label for="email">Email Address</label>
+                    <input type="email" id="email" placeholder="e.g. chidi@university.edu">
+
+                    <label for="educationLevel">Current Education Level</label>
+                    <select id="educationLevel">
+                        <option value="">--Please choose an option--</option>
+                        <option value="High School">High School</option>
+                        <option value="Undergraduate">Undergraduate</option>
+                        <option value="Graduate">Graduate</option>
+                        <option value="Professional / Self-taught">Professional / Self-taught</option>
+                    </select>
+
+                    <label for="fieldOfStudy">Field of Study</label>
+                    <input type="text" id="fieldOfStudy" placeholder="e.g. Computer Science">
+
+                    <label for="bio">About You</label>
+                    <textarea id="bio" rows="4" placeholder="Share a little about yourself and what brought you to Talent Flow…"></textarea>
+
+                    <label for="interests">Topics You're Interested In</label>
+                    <input type="text" id="interests" placeholder="e.g. Web Development, UI Design, Data Analysis">
+                    <p class="form-hint">Separate each topic with a comma.</p>
+
+                    <label for="goals">Learning Goals</label>
+                    <textarea id="goals" rows="3" placeholder="e.g. Land my first front-end developer role within a year"></textarea>
+
+                    <div class="form-row">
+                        <div>
+                            <label for="linkedin">LinkedIn</label>
+                            <input type="url" id="linkedin" placeholder="https://linkedin.com/in/…">
+                        </div>
+                        <div>
+                            <label for="github">GitHub</label>
+                            <input type="url" id="github" placeholder="https://github.com/…">
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn-primary full">Save Profile</button>
+                </form>
+            </div>
+        </section>
+
+    </main>
+
+</body>
+</html>

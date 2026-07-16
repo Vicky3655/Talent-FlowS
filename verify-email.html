@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="verify-email.css">
+    <script type="module" src="aut.js"></script>
+    <script src="verify-email.js" defer></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
+    <title>Verify Your Email — Talent Flow</title>
+</head>
+<body>
+    <main class="verify-shell">
+        <div class="verify-card">
+            <div class="verify-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M3 7.5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-9Z"/>
+                    <path d="m3.5 7 8.5 6 8.5-6"/>
+                </svg>
+            </div>
+
+            <h1>Check your inbox</h1>
+            <p class="verify-sub">
+                We sent a verification link to <strong id="verifyEmailAddress">your email</strong>.
+                Click it, then come back here.
+            </p>
+
+            <button type="button" class="btn-primary full" id="checkVerifiedBtn">I've verified — Continue</button>
+            <button type="button" class="btn-secondary full" id="resendBtn">Resend email</button>
+
+            <p class="verify-hint" id="verifyHint"></p>
+
+            <button type="button" class="btn-text-muted" id="logoutLink">Not you? Log out</button>
+        </div>
+    </main>
+</body>
+</html>

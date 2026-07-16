@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="performance.css">
+    <link rel="stylesheet" href="mobile-nav.css">
+    <script type="module" src="auth.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <title>Talent Flow – Performance</title>
+</head>
+<body>
+
+<!-- ══ NAV ══ -->
+<nav>
+    <div class="logo">
+        <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/>
+        </svg>
+        <span>Talent Flow</span>
+    </div>
+    <div class="nav-right">
+        <span class="nav-role">Instructor</span>
+        <button class="nav-icon-btn" aria-label="Notifications">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0"/>
+            </svg>
+        </button>
+        <div class="avatar">
+            <img id="nav-avatar-img" src="" alt="Instructor">
+        </div>
+        <button class="hamburger-btn" id="hamburger-btn">
+            <span class="hb-bar hb-top"></span>
+            <span class="hb-bar hb-mid"></span>
+            <span class="hb-bar hb-bot"></span>
+        </button>
+    </div>
+</nav>
+
+<!-- ══ SIDEBAR ══ -->
+<aside class="sidebar" id="sidebar">
+    <!-- Mobile header -->
+    <div class="sidebar-header">
+        <a href="instructor-dashboard.html" class="sb-brand">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/>
+            </svg>
+            Talent Flow
+        </a>
+        <button class="sb-close-btn" aria-label="Close menu">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+        </button>
+    </div>
+
+    <span class="sb-section">Navigation</span>
+
+    <!-- 1. Dashboard -->
+    <a href="instructor-dashboard.html" class="sidebar-link" data-tip="Dashboard" title="Dashboard">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+        <span class="sb-label">Dashboard</span>
+    </a>
+
+    <!-- 2. Courses -->
+    <a href="courses.html" class="sidebar-link" data-tip="Courses">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 20.25h12m-7.5-3v3m3-3v3m-10.125-3h17.25c.621 0 1.125-.504 1.125-1.125V4.875c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125Z"/>
+        </svg>
+        <span class="sb-label">Courses</span>
+    </a>
+
+    <!-- 3. Assignments -->
+    <a href="instructor-assignments.html" class="sidebar-link" data-tip="Assignments">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M11.35 3.836c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m8.9-4.414c.376.023.75.05 1.124.08 1.131.094 1.976 1.057 1.976 2.192V16.5A2.25 2.25 0 0 1 18 18.75h-2.25m-7.5-10.5H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V18.75m-7.5-10.5h6.375c.621 0 1.125.504 1.125 1.125v9.375"/>
+        </svg>
+        <span class="sb-label">Assignments</span>
+    </a>
+
+    <!-- 4. Students -->
+    <a href="students.html" class="sidebar-link" data-tip="Students">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.147a60.438 60.438 0 0 0-.491 6.347A48.62 48.62 0 0 1 12 20.904a48.62 48.62 0 0 1 8.232-4.41 60.46 60.46 0 0 0-.491-6.347m-15.482 0a50.636 50.636 0 0 0-2.658-.813A59.906 59.906 0 0 1 12 3.493a59.903 59.903 0 0 1 10.399 5.84c-.896.248-1.783.52-2.658.814m-15.482 0A50.717 50.717 0 0 1 12 13.489a50.702 50.702 0 0 1 3.741-3.342M6.75 15a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z"/>
+        </svg>
+        <span class="sb-label">Students</span>
+    </a>
+
+    <!-- 5. Performance -->
+    <a href="performance.html" class="sidebar-link active" data-tip="Performance">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z"/>
+        </svg>
+        <span class="sb-label">Performance</span>
+    </a>
+
+    <!-- 6. Settings -->
+    <a href="settings.html" class="sidebar-link" data-tip="Settings">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75a4.5 4.5 0 0 1-4.884 4.484c-1.076-.091-2.264.071-2.95.904l-7.152 8.684a2.548 2.548 0 1 1-3.586-3.586l8.684-7.152c.833-.686.995-1.874.904-2.95a4.5 4.5 0 0 1 6.336-4.486l-3.276 3.276a3.004 3.004 0 0 0 2.25 2.25l3.276-3.276c.256.565.398 1.192.398 1.852Z"/>
+        </svg>
+        <span class="sb-label">Settings</span>
+    </a>
+
+    <!-- Mobile footer -->
+    <div class="sb-footer">
+        <img src="" alt="Instructor" class="sb-footer-avatar" id="sbFooterAvatar">
+        <div class="sb-footer-info">
+            <div class="sb-footer-name" id="sbFooterName"></div>
+            <div class="sb-footer-role" id="sbFooterRole"></div>
+        </div>
+    </div>
+</aside>
+<div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+<!-- ══ MAIN CONTENT ══ -->
+<main class="content">
+
+    <!-- Page Header -->
+    <div class="page-header">
+        <div class="header-text">
+            <h1>Performance</h1>
+            <p class="page-sub">Insights into student learning outcomes and engagement</p>
+        </div>
+        <div class="period-pills" id="periodPills">
+            <button class="period-pill active" data-value="Last 7 days">7 days</button>
+            <button class="period-pill" data-value="Last 30 days">30 days</button>
+            <button class="period-pill" data-value="Last 3 months">3 months</button>
+            <button class="period-pill" data-value="This year">This year</button>
+            <button class="period-pill" data-value="All time">All time</button>
+        </div>
+    </div>
+
+    <!-- ── STAT CARDS ── -->
+    <div class="stat-cards" id="statCards">
+        <!-- injected by JS -->
+    </div>
+
+    <!-- ── TREND CHART ── -->
+    <div class="trend-section">
+        <div class="trend-head">
+            <div>
+                <h2 class="section-title">Trend Overview</h2>
+                <p class="section-sub" id="trendPeriodLabel">Last 7 days</p>
+            </div>
+            <div class="chart-legend" id="chartLegend"></div>
+        </div>
+        <div class="chart-wrap">
+            <canvas id="trendCanvas"></canvas>
+        </div>
+    </div>
+
+    <!-- ── BOTTOM ROW ── -->
+    <div class="bottom-row">
+
+        <!-- Course Performance -->
+        <div class="section-card" id="coursePerfCard">
+            <div class="sc-head">
+                <h2 class="section-title">Course Performance</h2>
+                <span class="sc-badge">Ranked by completion</span>
+            </div>
+            <div class="course-rows" id="courseRows">
+                <!-- injected by JS -->
+            </div>
+        </div>
+
+        <!-- Quick Insights -->
+        <div class="section-card insights-col">
+            <div class="sc-head">
+                <h2 class="section-title">Quick Insights</h2>
+            </div>
+            <div class="insights-list" id="insightsList">
+                <!-- injected by JS -->
+            </div>
+
+            <!-- Engagement Ring -->
+            <div class="engagement-wrap">
+                <canvas id="engagementRing" width="140" height="140"></canvas>
+                <div class="ring-label">
+                    <span class="ring-pct" id="ringPct">0%</span>
+                    <span class="ring-text">Overall<br>Engagement</span>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+</main>
+
+<script src="performance.js"></script>
+<script src="mobile-nav.js"></script>
+<script src="nav-avatar.js"></script>
+</body>
+</html>
