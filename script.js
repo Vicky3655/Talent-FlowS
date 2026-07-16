@@ -125,6 +125,53 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
+    // 3c. Password recovery (password.html) — Supabase redirects here
+    // with a recovery token in the URL after someone clicks the link
+    // in their reset email. auth.js detects it and fires
+    // "tf-password-recovery"; this swaps the "send a link" form for
+    // a "set a new password" one.
+    const resetNewPass = document.getElementById("resetNewPass");
+    if (resetNewPass) {
+        const showNewPasswordForm = () => {
+            document.querySelector(".welcome-text h1")?.setAttribute("hidden", "");
+            document.querySelector(".welcome-text .subtitle")?.setAttribute("hidden", "");
+            document.querySelector(".welcome-text form")?.setAttribute("hidden", "");
+            sendResetBtn?.setAttribute("hidden", "");
+            document.getElementById("resetResult")?.setAttribute("hidden", "");
+            document.getElementById("resetError")?.setAttribute("hidden", "");
+            resetNewPass.removeAttribute("hidden");
+        };
+
+        if (window.location.hash.includes("type=recovery")) showNewPasswordForm();
+        window.addEventListener("tf-password-recovery", showNewPasswordForm);
+
+        document.getElementById("confirmNewPasswordBtn")?.addEventListener("click", async () => {
+            const input = document.getElementById("newPasswordInput");
+            const warning = document.getElementById("newPasswordWarning");
+            const password = input.value;
+
+            if (!isPasswordStrong(password)) {
+                warning.textContent = "Password needs at least 8 characters, including a letter, a number, and a symbol.";
+                warning.hidden = false;
+                return;
+            }
+            warning.hidden = true;
+
+            const btn = document.getElementById("confirmNewPasswordBtn");
+            btn.disabled = true;
+            btn.textContent = "Saving…";
+            try {
+                await auth.confirmPasswordReset(password);
+                alert("Password updated — please log in with your new password.");
+                window.location.href = "login.html";
+            } catch (err) {
+                btn.disabled = false;
+                btn.textContent = "Set New Password";
+                alert(auth.friendlyError ? auth.friendlyError(err) : "Something went wrong — please try again.");
+            }
+        });
+    }
+
     // 4. Path Selection Logic (courses.html)
     const pathButtons = document.querySelectorAll(".select-btn");
     pathButtons.forEach(button => {
