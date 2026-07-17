@@ -1,241 +1,121 @@
-document.addEventListener("DOMContentLoaded", () => {
+/* ============================================================
+   TALENT FLOW  |  script.js
+   ------------------------------------------------------------
+   Handles UI interactions and Auth Form submissions for 
+   login.html and register.html.
+   ============================================================ */
+
+document.addEventListener('DOMContentLoaded', () => {
     const auth = window.TalentFlowAuth;
+    if (!auth) return;
 
-    const googleBtn = document.getElementById("googleSignInBtn");
-    if (googleBtn) {
-        googleBtn.addEventListener("click", () => {
-            if (!auth) {
-                alert("Still starting up — please try again in a moment.");
-                return;
-            }
-            auth.signInWithGoogle().catch((err) => {
-                if (err && (err.code === "auth/popup-closed-by-user" || err.code === "auth/cancelled-popup-request")) return;
-                alert(auth.friendlyError ? auth.friendlyError(err) : "Something went wrong — please try again.");
-            });
-        });
+    // --- DOM Elements ---
+    const loginBtn = document.getElementById('loginBtn');
+    const createAccountBtn = document.getElementById('createAccountBtn');
+    const googleBtn = document.getElementById('googleSignInBtn');
+    
+    // Inputs
+    const emailInput = document.getElementById('Email');
+    const passwordInput = document.getElementById('password');
+    const nameInput = document.getElementById('Name'); // Only on Register
+
+    // Error display
+    const strengthWarning = document.getElementById('passwordStrengthWarning');
+
+    /**
+     * Helper to show errors
+     */
+    function showAuthError(message) {
+        // Use existing warning element if available, or alert
+        if (strengthWarning) {
+            strengthWarning.textContent = message;
+            strengthWarning.hidden = false;
+            strengthWarning.style.color = '#DC2626';
+        } else {
+            alert(message);
+        }
     }
 
-    setupPasswordToggles();
-    setupPasswordStrength();
-
-    // 1. Splash Screen Transition (page.html)
-    if (document.getElementById("loader")) {
-        setTimeout(() => {
-            window.location.href = "login.html";
-        }, 2000);
-    }
-
-    // 2. Handling the "Create Account" button (register.html)
-    const createAccountBtn = document.getElementById("createAccountBtn");
-    if (createAccountBtn) {
-        createAccountBtn.addEventListener("click", async (e) => {
-            e.preventDefault(); // Prevents form refresh
-
-            const name = document.getElementById("Name").value.trim();
-            const email = document.getElementById("Email").value.trim();
-            const password = document.getElementById("password").value;
-
-            if (!name || !email || !password) {
-                alert("Please fill in all fields.");
-                return;
-            }
-            if (!isPasswordStrong(password)) {
-                alert("Password needs at least 8 characters, including a letter, a number, and a symbol.");
-                document.getElementById("password").focus();
-                return;
-            }
-            if (!auth) {
-                alert("Still starting up — please try again in a moment.");
-                return;
-            }
-
-            createAccountBtn.disabled = true;
-            try {
-                const { user, role } = await auth.register(name, email, password);
-                auth.redirectToRoleProfile(role, user);
-            } catch (err) {
-                createAccountBtn.disabled = false;
-                alert(auth.friendlyError ? auth.friendlyError(err) : "Something went wrong — please try again.");
-            }
-        });
-    }
-
-    // 3. Handling the "Login" button (login.html)
-    const loginBtn = document.getElementById("loginBtn");
+    // --- 1. SIGN IN LOGIC ---
     if (loginBtn) {
-        loginBtn.addEventListener("click", async (e) => {
-            e.preventDefault();
-
-            const email = document.getElementById("Email").value.trim();
-            const password = document.getElementById("password").value;
+        loginBtn.addEventListener('click', async () => {
+            const email = emailInput.value.trim();
+            const password = passwordInput.value.trim();
 
             if (!email || !password) {
-                alert("Please enter your email and password");
-                return;
-            }
-            if (!auth) {
-                alert("Still starting up — please try again in a moment.");
-                return;
+                return showAuthError("Please enter both email and password.");
             }
 
             loginBtn.disabled = true;
+            loginBtn.textContent = "Logging in...";
+
             try {
                 const { user, role } = await auth.login(email, password);
+                // Redirect based on role (to dashboard or choose-role)
                 auth.redirectToRoleProfile(role, user);
             } catch (err) {
+                showAuthError(auth.friendlyError(err));
                 loginBtn.disabled = false;
-                alert(auth.friendlyError ? auth.friendlyError(err) : "Incorrect email or password.");
+                loginBtn.textContent = "Login";
             }
         });
     }
 
-    // 3b. Handling "Send Reset Link" (password.html)
-    const sendResetBtn = document.getElementById("sendResetBtn");
-    if (sendResetBtn) {
-        const resultBox = document.getElementById("resetResult");
-        const errorBox = document.getElementById("resetError");
+    // --- 2. SIGN UP LOGIC ---
+    if (createAccountBtn) {
+        createAccountBtn.addEventListener('click', async () => {
+            const name = nameInput.value.trim();
+            const email = emailInput.value.trim();
+            const password = passwordInput.value.trim();
 
-        sendResetBtn.addEventListener("click", async () => {
-            const email = document.getElementById("Email").value.trim();
-            if (!email) {
-                alert("Please enter your email first.");
-                return;
-            }
-            if (!auth) {
-                alert("Still starting up — please try again in a moment.");
-                return;
+            if (!name || !email || !password) {
+                return showAuthError("All fields are required.");
             }
 
-            sendResetBtn.disabled = true;
+            if (password.length < 8) {
+                return showAuthError("Password must be at least 8 characters.");
+            }
+
+            createAccountBtn.disabled = true;
+            createAccountBtn.textContent = "Creating Account...";
+
             try {
-                await auth.sendResetLink(email);
-                errorBox?.setAttribute("hidden", "");
-                const emailSpan = document.getElementById("resetSentEmail");
-                if (emailSpan) emailSpan.textContent = email;
-                resultBox?.removeAttribute("hidden");
+                await auth.register(name, email, password);
+                // After signup, user is sent to verify-email.html automatically
+                window.location.href = 'verify-email.html';
             } catch (err) {
-                resultBox?.setAttribute("hidden", "");
-                if (errorBox) {
-                    errorBox.textContent = auth.friendlyError ? auth.friendlyError(err) : "Something went wrong — please try again.";
-                    errorBox.removeAttribute("hidden");
-                }
-            } finally {
-                sendResetBtn.disabled = false;
+                showAuthError(auth.friendlyError(err));
+                createAccountBtn.disabled = false;
+                createAccountBtn.textContent = "Create Account";
             }
         });
     }
 
-    // 3c. Password recovery (password.html) — Supabase redirects here
-    // with a recovery token in the URL after someone clicks the link
-    // in their reset email. auth.js detects it and fires
-    // "tf-password-recovery"; this swaps the "send a link" form for
-    // a "set a new password" one.
-    const resetNewPass = document.getElementById("resetNewPass");
-    if (resetNewPass) {
-        const showNewPasswordForm = () => {
-            document.querySelector(".welcome-text h1")?.setAttribute("hidden", "");
-            document.querySelector(".welcome-text .subtitle")?.setAttribute("hidden", "");
-            document.querySelector(".welcome-text form")?.setAttribute("hidden", "");
-            sendResetBtn?.setAttribute("hidden", "");
-            document.getElementById("resetResult")?.setAttribute("hidden", "");
-            document.getElementById("resetError")?.setAttribute("hidden", "");
-            resetNewPass.removeAttribute("hidden");
-        };
-
-        if (window.location.hash.includes("type=recovery")) showNewPasswordForm();
-        window.addEventListener("tf-password-recovery", showNewPasswordForm);
-
-        document.getElementById("confirmNewPasswordBtn")?.addEventListener("click", async () => {
-            const input = document.getElementById("newPasswordInput");
-            const warning = document.getElementById("newPasswordWarning");
-            const password = input.value;
-
-            if (!isPasswordStrong(password)) {
-                warning.textContent = "Password needs at least 8 characters, including a letter, a number, and a symbol.";
-                warning.hidden = false;
-                return;
-            }
-            warning.hidden = true;
-
-            const btn = document.getElementById("confirmNewPasswordBtn");
-            btn.disabled = true;
-            btn.textContent = "Saving…";
+    // --- 3. GOOGLE SIGN IN ---
+    if (googleBtn) {
+        googleBtn.addEventListener('click', async () => {
             try {
-                await auth.confirmPasswordReset(password);
-                alert("Password updated — please log in with your new password.");
-                window.location.href = "login.html";
+                await auth.signInWithGoogle();
             } catch (err) {
-                btn.disabled = false;
-                btn.textContent = "Set New Password";
-                alert(auth.friendlyError ? auth.friendlyError(err) : "Something went wrong — please try again.");
+                showAuthError(auth.friendlyError(err));
             }
         });
     }
 
-    // 4. Path Selection Logic (courses.html)
-    const pathButtons = document.querySelectorAll(".select-btn");
-    pathButtons.forEach(button => {
-        button.addEventListener("click", () => {
-            // Here you can link to specific course pages in the future
-            alert("Path Selected: " + button.innerText);
-            // window.location.href = "course-details.html"; 
+    // --- 4. PASSWORD TOGGLE ---
+    const toggleBtns = document.querySelectorAll('.toggle-password');
+    toggleBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const targetId = btn.getAttribute('data-target');
+            const input = document.getElementById(targetId);
+            
+            if (input.type === 'password') {
+                input.type = 'text';
+                btn.classList.add('is-visible');
+            } else {
+                input.type = 'password';
+                btn.classList.remove('is-visible');
+            }
         });
     });
 });
-
-// 6. Password strength warning (register.html) — must contain
-//    letters, numbers, AND symbols together, checked live as they type.
-function setupPasswordStrength() {
-    const input   = document.getElementById('password');
-    const warning = document.getElementById('passwordStrengthWarning');
-    if (!input || !warning) return;
-
-    function check() {
-        const val = input.value;
-        if (!val) { warning.hidden = true; return; }
-
-        const hasLetter = /[A-Za-z]/.test(val);
-        const hasNumber = /[0-9]/.test(val);
-        const hasSymbol = /[^A-Za-z0-9]/.test(val);
-        const longEnough = val.length >= 8;
-
-        if (hasLetter && hasNumber && hasSymbol && longEnough) {
-            warning.hidden = true;
-            return;
-        }
-
-        const missing = [];
-        if (!longEnough) missing.push('at least 8 characters');
-        if (!hasLetter)  missing.push('a letter');
-        if (!hasNumber)  missing.push('a number');
-        if (!hasSymbol)  missing.push('a symbol (like ! ? # -)');
-
-        warning.textContent = 'Password needs ' + missing.join(', ');
-        warning.hidden = false;
-    }
-
-    input.addEventListener('input', check);
-}
-
-// Reusable everywhere a submit handler wants to double check strength
-// before letting a password through, not just show the warning.
-function isPasswordStrong(password) {
-    return password.length >= 8
-        && /[A-Za-z]/.test(password)
-        && /[0-9]/.test(password)
-        && /[^A-Za-z0-9]/.test(password);
-}
-// 5. Password show/hide toggle (login.html + register.html)
-function setupPasswordToggles() {
-    document.querySelectorAll(".toggle-password").forEach((btn) => {
-        btn.addEventListener("click", () => {
-            const input = document.getElementById(btn.dataset.target);
-            if (!input) return;
-
-            const willShow = input.type === "password";
-            input.type = willShow ? "text" : "password";
-            btn.classList.toggle("is-visible", willShow);
-            btn.setAttribute("aria-label", willShow ? "Hide password" : "Show password");
-        });
-    });
-}
