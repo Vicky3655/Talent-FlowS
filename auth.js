@@ -1,4 +1,3 @@
-/* TALENT FLOW | auth.js */
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const SUPABASE_URL = 'https://ontaucdcmrkyvpflxtti.supabase.co';
@@ -31,33 +30,35 @@ supabase.auth.onAuthStateChange(async (event, session) => {
         try {
             let profile = await window.TalentFlowAuth.loadProfile(currentUser.uid);
             if (!profile) {
-                profile = { full_name: currentUser.displayName, email: currentUser.email, role: '', provider: 'google' };
-                await window.TalentFlowAuth.saveProfile(currentUser.uid, profile);
+                await window.TalentFlowAuth.saveProfile(currentUser.uid, { 
+                    fullName: currentUser.displayName, 
+                    email: currentUser.email, 
+                    role: '', 
+                    provider: 'google' 
+                });
             }
-            // Auto-redirect if on login/register page
             const p = window.location.pathname;
             if (p.includes('login.html') || p.includes('register.html') || p.endsWith('/') || p === '') {
-                window.TalentFlowAuth.redirectToRoleProfile(profile.role || '', currentUser);
+                window.TalentFlowAuth.redirectToRoleProfile(profile?.role || '', currentUser);
             }
-        } catch (e) { console.error("Post-login error:", e); }
+        } catch (e) { console.error("Sign-in handling error:", e); }
     }
 });
 
 window.TalentFlowAuth = {
     supabase,
     async signInWithGoogle() {
-        const { error } = await supabase.auth.signInWithOAuth({
+        await supabase.auth.signInWithOAuth({
             provider: 'google',
             options: { redirectTo: window.location.origin + '/choose-role.html' }
         });
-        if (error) throw error;
     },
     async register(name, email, password) {
         const { data, error } = await supabase.auth.signUp({ 
             email, password, options: { data: { full_name: name } } 
         });
         if (error) throw error;
-        await this.saveProfile(data.user.id, { full_name: name, email, role: '', provider: 'email' });
+        await this.saveProfile(data.user.id, { fullName: name, email, role: '', provider: 'email' });
         return { user: normalizeUser(data.user), role: '' };
     },
     async login(email, password) {
@@ -68,10 +69,18 @@ window.TalentFlowAuth = {
     },
     async loadProfile(uid) {
         const { data } = await supabase.from('profiles').select('*').eq('id', uid).maybeSingle();
-        return data;
+        if (data) return { ...data, fullName: data.full_name }; // Map back to JS name
+        return null;
     },
     async saveProfile(uid, data) {
-        const { error } = await supabase.from('profiles').upsert({ id: uid, ...data });
+        // Map JS names to Database names
+        const dbData = { id: uid };
+        if (data.fullName !== undefined) dbData.full_name = data.fullName;
+        if (data.email !== undefined) dbData.email = data.email;
+        if (data.role !== undefined) dbData.role = data.role;
+        if (data.provider !== undefined) dbData.provider = data.provider;
+
+        const { error } = await supabase.from('profiles').upsert(dbData);
         if (error) throw error;
     },
     redirectToRoleProfile(role, user) {
@@ -84,7 +93,6 @@ window.TalentFlowAuth = {
     async setRole(role) {
         if (!window.TalentFlowUser) return;
         await this.saveProfile(window.TalentFlowUser.uid, { role });
-        this.redirectToRoleProfile(role);
     },
     requireAuth() {
         return new Promise((res) => {
@@ -94,6 +102,7 @@ window.TalentFlowAuth = {
     },
     logOut() { return supabase.auth.signOut().then(() => window.location.href = 'login.html'); },
     friendlyError(err) {
+        console.error("Supabase Error:", err); // This helps you see the REAL error in Inspect -> Console
         const m = err.message?.toLowerCase() || "";
         if (m.includes("invalid login")) return "Incorrect email or password";
         if (m.includes("already registered")) return "That email is already registered";
