@@ -1,41 +1,57 @@
 /* ============================================================
    TALENT FLOW  |  choose-role.js
    ------------------------------------------------------------
-   Shown right after sign-up or sign-in for anyone who hasn't
-   picked Instructor/Student yet. Picking a card immediately
-   saves it and sends them to the matching profile-setup page —
-   no separate confirm button to click.
+   Handles the logic for selecting Instructor vs Student.
    ============================================================ */
 
 document.addEventListener('DOMContentLoaded', async () => {
   const auth = window.TalentFlowAuth;
   if (!auth) return;
 
-  const user = await auth.requireAuth(); // redirects to login.html if signed out
+  // 1. Protect the page: Redirect to login if not signed in
+  const user = await auth.requireAuth(); 
 
-  // Unverified email/password accounts shouldn't reach the role picker
-  // at all — send them to verify first.
-  if (!user.emailVerified) { window.location.href = 'verify-email.html'; return; }
+  // 2. Double check verification (mostly for email/pass users)
+  if (!user.emailVerified) { 
+      // If they are a Google user, they are likely verified, but auth.js handles this check
+      const isGoogle = (user.photoURL && user.photoURL.includes('googleusercontent'));
+      if (!isGoogle) {
+        window.location.href = 'verify-email.html'; 
+        return; 
+      }
+  }
 
   const radios     = document.querySelectorAll('input[name="role"]');
   const status      = document.getElementById('roleStatus');
   const logoutLink  = document.getElementById('logoutLink');
 
+  // 3. Handle card selection
   radios.forEach((radio) => {
     radio.addEventListener('change', async () => {
-      // Lock the choice in visually and prevent a second click while saving.
+      // Disable interaction while saving
       radios.forEach((r) => { r.disabled = true; });
-      if (status) status.hidden = false;
+      if (status) {
+          status.hidden = false;
+          status.textContent = "Saving your preference...";
+      }
 
       try {
-        await auth.setRole(radio.value); // saves the role and redirects itself
+        // This saves the role to Postgres and triggers the redirect to the profile page
+        await auth.setRole(radio.value); 
       } catch (err) {
+        // Re-enable on error
         radios.forEach((r) => { r.disabled = false; });
         if (status) status.hidden = true;
-        alert(auth.friendlyError ? auth.friendlyError(err) : 'Something went wrong — please try again.');
+        alert(auth.friendlyError(err));
       }
     });
   });
 
-  logoutLink?.addEventListener('click', () => auth.logOut());
+  // 4. Logout link
+  if (logoutLink) {
+    logoutLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        auth.logOut();
+    });
+  }
 });
