@@ -26,16 +26,14 @@ supabase.auth.onAuthStateChange(async (event, session) => {
     readyCallbacks.splice(0).forEach(cb => cb(currentUser));
 
     if (event === 'SIGNED_IN' && currentUser) {
-        let profile = await window.TalentFlowAuth.loadProfile(currentUser.uid);
+        const profile = await window.TalentFlowAuth.loadProfile(currentUser.uid);
         if (!profile) {
-            // New Google User
             await window.TalentFlowAuth.saveProfile(currentUser.uid, { 
                 fullName: currentUser.displayName, 
                 email: currentUser.email, 
                 provider: 'google' 
             });
         }
-        // Redirect logic
         const p = window.location.pathname;
         if (p.includes('login.html') || p.includes('register.html') || p.endsWith('/') || p === '') {
             window.TalentFlowAuth.redirectToRoleProfile(profile?.role || '', currentUser);
@@ -56,8 +54,7 @@ window.TalentFlowAuth = {
             email, password, options: { data: { full_name: name } } 
         });
         if (error) throw error;
-        // This is where the "Connection Error" usually happens - now fixed by Step 1 SQL
-        await this.saveProfile(data.user.id, { fullName: name, email: email, provider: 'email' });
+        await this.saveProfile(data.user.id, { fullName: name, email, provider: 'email' });
         return { user: normalizeUser(data.user) };
     },
     async login(email, password) {
@@ -68,16 +65,15 @@ window.TalentFlowAuth = {
     },
     async loadProfile(uid) {
         const { data } = await supabase.from('profiles').select('*').eq('id', uid).maybeSingle();
-        return data ? { ...data, role: data.role, fullName: data.full_name } : null;
+        return data ? { ...data, fullName: data.full_name } : null;
     },
     async saveProfile(uid, data) {
-        const dbPayload = { id: uid };
-        if (data.fullName) dbPayload.full_name = data.fullName;
-        if (data.email) dbPayload.email = data.email;
-        if (data.role) dbPayload.role = data.role;
+        const dbMap = { id: uid };
+        if (data.fullName) dbMap.full_name = data.fullName;
+        if (data.email) dbMap.email = data.email;
+        if (data.role !== undefined) dbMap.role = data.role;
         if (data.provider) dbPayload.provider = data.provider;
-        
-        const { error } = await supabase.from('profiles').upsert(dbPayload);
+        const { error } = await supabase.from('profiles').upsert(dbMap);
         if (error) throw error;
     },
     redirectToRoleProfile(role, user) {
@@ -89,7 +85,7 @@ window.TalentFlowAuth = {
     },
     async setRole(role) {
         if (!window.TalentFlowUser) return;
-        await this.saveProfile(window.TalentFlowUser.uid, { role: role });
+        await this.saveProfile(window.TalentFlowUser.uid, { role });
         this.redirectToRoleProfile(role);
     },
     requireAuth() {
@@ -102,7 +98,7 @@ window.TalentFlowAuth = {
     friendlyError(err) {
         const m = err.message?.toLowerCase() || "";
         if (m.includes("invalid login")) return "Incorrect email or password";
-        if (m.includes("already registered")) return "Email already exists. Try logging in.";
+        if (m.includes("already registered")) return "User already exists. Try logging in.";
         return "Connection error — please check your Supabase SQL setup.";
     }
 };
