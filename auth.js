@@ -9,18 +9,13 @@
    ============================================================ */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+
+/* ── Paste your Supabase project's URL and anon key here ─────
+   Supabase dashboard → Project Settings → API. The anon key is
+   safe to expose client-side — it only grants what the Row
+   Level Security policies (see the SQL schema) allow. ──────── */
 const SUPABASE_URL = 'https://ontaucdcmrkyvpflxtti.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_x-zRHHlxLCq1gh28aTv-0w_kht1wDxa';
-
-/* Captured before createClient() runs. The instant that call fires,
-   Supabase starts processing a Google-redirect URL if one's present —
-   stripping access_token out of the hash *before* it ever notifies
-   onAuthStateChange listeners. So checking window.location.hash from
-   inside that listener always sees it already empty. This flag
-   remembers what was actually there when the page loaded. */
-let cameFromGoogleRedirect =
-  window.location.hash.includes('access_token') ||
-  new URLSearchParams(window.location.search).has('code');
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -231,13 +226,11 @@ supabase.auth.onAuthStateChange(async (event, session) => {
     window.dispatchEvent(new CustomEvent('tf-password-recovery'));
   }
 
-  // Completing a Google redirect lands back here — but by now Supabase
-  // has already cleared the tokens from the URL, so check the flag
-  // captured above instead of the (now-empty) URL itself.
-  if (event === 'SIGNED_IN' && currentUser && cameFromGoogleRedirect) {
-    cameFromGoogleRedirect = false; // one-shot, so a later SIGNED_IN elsewhere doesn't re-fire this
+  // Completing a Google redirect lands back here with tokens in the
+  // URL hash — finish the same "check profile, go to the right page"
+  // step the old popup flow used to do inline.
+  if (event === 'SIGNED_IN' && currentUser && window.location.hash.includes('access_token')) {
     history.replaceState(null, '', window.location.pathname + window.location.search);
-     
     try {
       const existing = await loadProfile(currentUser.uid);
       if (!existing) {
@@ -338,12 +331,14 @@ window.TalentFlowAuth = {
     return currentUser.emailVerified;
   },
 
-  setRole(role) {
+  async setRole(role) {
     const user = window.TalentFlowUser;
     if (!user) { window.location.href = 'login.html'; return; }
-    saveProfile(user.uid, { role }).catch((err) => {
+    try {
+      await saveProfile(user.uid, { role });
+    } catch (err) {
       console.error('Role save failed (continuing anyway):', err);
-    });
+    }
     this.redirectToRoleProfile(role);
   },
 
