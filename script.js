@@ -1,31 +1,32 @@
-/* TALENT FLOW | script.js */
 document.addEventListener('DOMContentLoaded', () => {
     const auth = window.TalentFlowAuth;
-    const errorEl = document.getElementById('passwordStrengthWarning');
-    const showErr = (msg) => { if(errorEl) { errorEl.textContent = msg; errorEl.hidden = false; } else alert(msg); };
+    const errorDisplay = document.getElementById('passwordStrengthWarning');
 
-    // Login logic
-    document.getElementById('loginBtn')?.addEventListener('click', async () => {
-        const btn = document.getElementById('loginBtn');
-        try {
-            btn.disabled = true;
-            btn.textContent = "Checking...";
-            const { user, role } = await auth.login(document.getElementById('Email').value, document.getElementById('password').value);
-            auth.redirectToRoleProfile(role, user);
-        } catch (e) { showErr(auth.friendlyError(e)); btn.disabled = false; btn.textContent = "Login"; }
-    });
-
-    // Register logic
     document.getElementById('createAccountBtn')?.addEventListener('click', async () => {
+        const name = document.getElementById('Name').value;
+        const email = document.getElementById('Email').value;
+        const pass = document.getElementById('password').value;
         const btn = document.getElementById('createAccountBtn');
+
+        if (!name || !email || pass.length < 8) {
+            errorDisplay.textContent = "Please fill all fields (Password min 8 chars)";
+            errorDisplay.hidden = false;
+            return;
+        }
+
         try {
             btn.disabled = true;
             btn.textContent = "Creating...";
-            await auth.register(document.getElementById('Name').value, document.getElementById('Email').value, document.getElementById('password').value);
+            await auth.register(name, email, pass);
+            // Success! Send to verify page
             window.location.href = 'verify-email.html';
-        } catch (e) { showErr(auth.friendlyError(e)); btn.disabled = false; btn.textContent = "Create Account"; }
+        } catch (e) {
+            errorDisplay.textContent = auth.friendlyError(e);
+            errorDisplay.hidden = false;
+            btn.disabled = false;
+            btn.textContent = "Create Account";
+        }
     });
 
-    // Google logic
     document.getElementById('googleSignInBtn')?.addEventListener('click', () => auth.signInWithGoogle());
 });
