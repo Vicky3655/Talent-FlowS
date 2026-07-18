@@ -5,9 +5,37 @@
    Firebase emailed them. Google sign-ins skip this page entirely
    (Firebase already marks those accounts verified).
    ============================================================ */
+
+// auth.js is an ES module fetching an external dependency, so there's
+// no hard guarantee window.TalentFlowAuth exists the instant this
+// script's DOMContentLoaded callback fires. Poll briefly instead of
+// checking once and silently doing nothing.
+function waitForTalentFlowAuth(timeoutMs = 8000) {
+  if (window.TalentFlowAuth) return Promise.resolve(window.TalentFlowAuth);
+  return new Promise((resolve) => {
+    const start = Date.now();
+    const timer = setInterval(() => {
+      if (window.TalentFlowAuth) {
+        clearInterval(timer);
+        resolve(window.TalentFlowAuth);
+      } else if (Date.now() - start > timeoutMs) {
+        clearInterval(timer);
+        resolve(null);
+      }
+    }, 50);
+  });
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
-  const auth = window.TalentFlowAuth;
-  if (!auth) return;
+  const auth = await waitForTalentFlowAuth();
+  if (!auth) {
+    const hint = document.getElementById('verifyHint');
+    if (hint) {
+      hint.textContent = "Couldn't reach Talent Flow's sign-in service. Please refresh the page.";
+      hint.className = 'verify-hint error';
+    }
+    return;
+  }
 
   const user = await auth.requireAuth(); // redirects to login.html if signed out
 
@@ -37,7 +65,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const profile = await auth.loadProfile(user.uid);
       role = profile ? profile.role : '';
     } catch (err) {
-      console.error('Firestore profile read failed (continuing anyway):', err);
+      console.error('Profile read failed (continuing anyway):', err);
     }
     auth.redirectToRoleProfile(role, user);
   }
