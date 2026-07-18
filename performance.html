@@ -6,6 +6,7 @@
     <link rel="stylesheet" href="performance.css">
     <link rel="stylesheet" href="mobile-nav.css">
     <script type="module" src="auth.js"></script>
+    <script type="module" src="data-store.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -160,7 +161,7 @@
         <div class="section-card" id="coursePerfCard">
             <div class="sc-head">
                 <h2 class="section-title">Course Performance</h2>
-                <span class="sc-badge">Ranked by completion</span>
+                <span class="sc-badge">Ranked by enrollment</span>
             </div>
             <div class="course-rows" id="courseRows">
                 <!-- injected by JS -->
@@ -181,7 +182,7 @@
                 <canvas id="engagementRing" width="140" height="140"></canvas>
                 <div class="ring-label">
                     <span class="ring-pct" id="ringPct">0%</span>
-                    <span class="ring-text">Overall<br>Engagement</span>
+                    <span class="ring-text">Grading<br>Completion</span>
                 </div>
             </div>
         </div>
