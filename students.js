@@ -1,5 +1,8 @@
-/* ─── SAMPLE DATA ─────────────────────── */
-const STUDENTS = [];
+/* ─── STATE (populated from Supabase — see init() at the bottom) ─── */
+let STUDENTS = [];
+let COURSES = [];           // [{id, title}]
+let currentInstructorId = null;
+
 /* ─── AVATAR COLOUR PALETTE ───────────── */
 const AVATAR_COLORS = [
     '#2563EB','#7C3AED','#16A34A','#EA580C',
@@ -24,11 +27,30 @@ function gradeColor(g) {
     return '#DC2626';
 }
 
+// auth.js is an ES module fetching an external dependency, so there's
+// no hard guarantee window.TalentFlowAuth exists the instant this
+// script runs. Poll briefly instead of assuming it's already there.
+function waitForTalentFlowAuth(timeoutMs = 8000) {
+    if (window.TalentFlowAuth) return Promise.resolve(window.TalentFlowAuth);
+    return new Promise((resolve) => {
+        const start = Date.now();
+        const timer = setInterval(() => {
+            if (window.TalentFlowAuth) {
+                clearInterval(timer);
+                resolve(window.TalentFlowAuth);
+            } else if (Date.now() - start > timeoutMs) {
+                clearInterval(timer);
+                resolve(null);
+            }
+        }, 50);
+    });
+}
+
 /* ─── STATE ───────────────────────────── */
 let currentView   = 'table';
 let searchQuery   = '';
 let statusFilter  = 'all';
-let courseFilter  = 'all';
+let courseFilter  = 'all';      // 'all' or a course id
 let sortKey       = 'name';
 let sortDir       = 1;          // 1 asc, -1 desc
 let currentPage   = 1;
@@ -51,13 +73,14 @@ const viewGridBtn  = document.getElementById('viewGrid');
 function renderStatCards() {
     const total    = STUDENTS.length;
     const active   = STUDENTS.filter(s => s.status === 'active').length;
-    const avgGrade = Math.round(STUDENTS.reduce((a, s) => a + s.grade, 0) / total);
+    const graded   = STUDENTS.filter(s => s.grade !== null);
+    const avgGrade = graded.length ? Math.round(graded.reduce((a, s) => a + s.grade, 0) / graded.length) : 0;
     const atRisk   = STUDENTS.filter(s => s.status === 'at-risk').length;
 
     const cards = [
         { label: 'Total Students', value: total,    badge: 'neutral', badgeText: 'All time',    accent: '#2563EB', accentL: '#EFF6FF',
           icon: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="#2563EB"><path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.72 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z"/></svg>` },
-        { label: 'Active Learners', value: active,   badge: 'up',      badgeText: `${Math.round(active/total*100)}%`,  accent: '#16A34A', accentL: '#F0FDF4',
+        { label: 'Active Learners', value: active,   badge: 'up',      badgeText: total ? `${Math.round(active/total*100)}%` : '—',  accent: '#16A34A', accentL: '#F0FDF4',
           icon: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="#16A34A"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>` },
         { label: 'Average Grade', value: `${avgGrade}%`, badge: avgGrade >= 75 ? 'up' : 'warn', badgeText: avgGrade >= 75 ? 'Good' : 'Fair', accent: '#7C3AED', accentL: '#F5F3FF',
           icon: `<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="#7C3AED"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z"/></svg>` },
@@ -79,10 +102,11 @@ function renderStatCards() {
 
 /* ─── COURSE FILTER DROPDOWN ──────────── */
 function populateCourseFilter() {
-    COURSES.forEach((name, i) => {
+    courseSel.innerHTML = '<option value="all">All Courses</option>';
+    COURSES.forEach((c) => {
         const opt = document.createElement('option');
-        opt.value = i;
-        opt.textContent = name;
+        opt.value = c.id;
+        opt.textContent = c.title;
         courseSel.appendChild(opt);
     });
 }
@@ -92,18 +116,18 @@ function filtered() {
     return STUDENTS
         .filter(s => {
             const q = searchQuery.toLowerCase();
-            const matchQ = !q || s.name.toLowerCase().includes(q) || s.email.toLowerCase().includes(q);
+            const matchQ = !q || s.name.toLowerCase().includes(q);
             const matchS = statusFilter === 'all' || s.status === statusFilter;
-            const matchC = courseFilter === 'all' || s.courses.includes(Number(courseFilter));
+            const matchC = courseFilter === 'all' || s.courseIds.includes(courseFilter);
             return matchQ && matchS && matchC;
         })
         .sort((a, b) => {
             let av, bv;
-            if (sortKey === 'name')    { av = a.name;     bv = b.name; }
-            if (sortKey === 'grade')   { av = a.grade;    bv = b.grade; }
-            if (sortKey === 'courses') { av = a.courses.length; bv = b.courses.length; }
-            if (sortKey === 'status')  { av = a.status;   bv = b.status; }
-            if (sortKey === 'last')    { av = a.last;     bv = b.last; }
+            if (sortKey === 'name')    { av = a.name;              bv = b.name; }
+            if (sortKey === 'grade')   { av = a.grade || 0;         bv = b.grade || 0; }
+            if (sortKey === 'courses') { av = a.courseIds.length;   bv = b.courseIds.length; }
+            if (sortKey === 'status')  { av = a.status;             bv = b.status; }
+            if (sortKey === 'last')    { av = a.enrolledAt || '';   bv = b.enrolledAt || ''; }
             if (av < bv) return -1 * sortDir;
             if (av > bv) return 1 * sortDir;
             return 0;
@@ -127,9 +151,14 @@ function initialsNode(name, size) {
     return d;
 }
 
+function formatDateShort(iso) {
+    if (!iso) return '—';
+    return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
 /* ─── TABLE ROW HTML ──────────────────── */
 function rowHtml(s, delay) {
-    const courseNames = s.courses.map(i => COURSES[i]).join(', ');
+    const courseNames = s.courseTitles.join(', ');
     const statusLabel = s.status === 'at-risk' ? 'At Risk' : s.status.charAt(0).toUpperCase() + s.status.slice(1);
     return `
     <div class="student-row" style="animation-delay:${delay}ms">
@@ -137,18 +166,18 @@ function rowHtml(s, delay) {
             ${avatarHtml(s)}
             <div>
                 <div class="sr-name">${s.name}</div>
-                <div class="sr-email">${s.email}</div>
+                <div class="sr-email">${s.courseTitles[0] || 'Not enrolled in any course'}</div>
             </div>
         </div>
         <div class="sr-courses">
-            ${s.courses.length}
-            <span title="${courseNames}">${s.courses.length === 1 ? 'course' : 'courses'}</span>
+            ${s.courseIds.length}
+            <span title="${courseNames}">${s.courseIds.length === 1 ? 'course' : 'courses'}</span>
         </div>
-        <div class="sr-grade" style="color:${gradeColor(s.grade)}">${s.grade}%</div>
+        <div class="sr-grade" style="color:${gradeColor(s.grade || 0)}">${s.grade !== null ? s.grade + '%' : '—'}</div>
         <div class="sr-status">
             <span class="status-pill ${s.status}">${statusLabel}</span>
         </div>
-        <div class="sr-last">${s.last}</div>
+        <div class="sr-last">${formatDateShort(s.enrolledAt)}</div>
         <div class="sr-actions">
             <button class="action-btn" title="View profile">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
@@ -174,21 +203,21 @@ function cardHtml(s) {
             ${avatarHtml(s, 44)}
             <div class="sc-info">
                 <div class="sc-name">${s.name}</div>
-                <div class="sc-email">${s.email}</div>
+                <div class="sc-email">${s.courseTitles[0] || 'Not enrolled in any course'}</div>
             </div>
         </div>
         <div class="sc-stats">
             <div class="sc-stat">
-                <div class="sc-stat-val" style="color:${gradeColor(s.grade)}">${s.grade}%</div>
+                <div class="sc-stat-val" style="color:${gradeColor(s.grade || 0)}">${s.grade !== null ? s.grade + '%' : '—'}</div>
                 <div class="sc-stat-lbl">Grade</div>
             </div>
             <div class="sc-stat">
-                <div class="sc-stat-val">${s.courses.length}</div>
+                <div class="sc-stat-val">${s.courseIds.length}</div>
                 <div class="sc-stat-lbl">Courses</div>
             </div>
             <div class="sc-stat">
-                <div class="sc-stat-val" style="font-size:13px;color:var(--slate-5)">${s.last}</div>
-                <div class="sc-stat-lbl">Last Active</div>
+                <div class="sc-stat-val" style="font-size:13px;color:var(--slate-5)">${formatDateShort(s.enrolledAt)}</div>
+                <div class="sc-stat-lbl">Enrolled</div>
             </div>
         </div>
         <div class="sc-footer">
@@ -287,7 +316,7 @@ document.querySelectorAll('.th[data-sort]').forEach(th => {
 
 /* ─── SEARCH ──────────────────────────── */
 searchInput.addEventListener('input', () => {
-    searchQuery = searchQuery.trim();
+    searchQuery = searchInput.value.trim();
     currentPage = 1;
     render();
 });
@@ -309,11 +338,6 @@ viewGridBtn.addEventListener('click', () => {
     viewTableBtn.classList.remove('active');
     render();
 });
-
-/* ─── INIT ────────────────────────────── */
-renderStatCards();
-populateCourseFilter();
-render();
 
 const EJS_KEY      = 'YOUR_PUBLIC_KEY';
 const EJS_SERVICE  = 'service_f4dl4md';
@@ -480,7 +504,11 @@ const BASE_LINK    = 'https://talentflow.app/join/';
     chipInput.addEventListener('click', () => emailTyping.focus());
 
     function buildCourseChecks(container, selectedArr) {
-        container.innerHTML = COURSES.map((name, i) => `
+        if (!COURSES.length) {
+            container.innerHTML = `<p style="grid-column:1/-1;font-size:12.5px;color:var(--slate-4);padding:6px 2px">You don't have any courses yet.</p>`;
+            return;
+        }
+        container.innerHTML = COURSES.map((c, i) => `
             <label class="course-check-item${selectedArr.includes(i) ? ' checked' : ''}" data-idx="${i}">
                 <input type="checkbox" ${selectedArr.includes(i) ? 'checked' : ''}>
                 <div class="check-box">
@@ -488,7 +516,7 @@ const BASE_LINK    = 'https://talentflow.app/join/';
                         <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/>
                     </svg>
                 </div>
-                <div class="check-name">${name}</div>
+                <div class="check-name">${c.title}</div>
             </label>`).join('');
 
         container.querySelectorAll('.course-check-item').forEach(item => {
@@ -505,9 +533,6 @@ const BASE_LINK    = 'https://talentflow.app/join/';
             });
         });
     }
-
-    buildCourseChecks(emailChecks, emailCourseSelected);
-    buildCourseChecks(linkChecks,  linkCourseSelected);
 
     function updateSendBtn() {
         if (activeTab === 'email') {
@@ -583,7 +608,7 @@ const BASE_LINK    = 'https://talentflow.app/join/';
 
         isSending = true;
         const emailList   = [...chips];
-        const courseNames = emailCourseSelected.map(i => COURSES[i]);
+        const courseNames = emailCourseSelected.map(i => COURSES[i]?.title).filter(Boolean);
         const message     = document.getElementById('personalMsg').value.trim();
         const isDemo      = EJS_KEY === 'YOUR_PUBLIC_KEY';
         const inviteToken = Math.random().toString(36).slice(2, 10);
@@ -675,3 +700,38 @@ const BASE_LINK    = 'https://talentflow.app/join/';
         setTimeout(() => { copyBtnText.textContent = 'Copy'; copyLinkBtn.classList.remove('copied'); }, 2000);
     });
 })();
+
+/* ─── INIT ────────────────────────────── */
+document.addEventListener('DOMContentLoaded', async () => {
+    const auth = await waitForTalentFlowAuth();
+    if (!auth) {
+        emptyState.classList.add('visible');
+        emptyState.querySelector('p').textContent = "Couldn't connect — please refresh the page.";
+        return;
+    }
+
+    let user;
+    try {
+        user = await auth.requireAuth(); // redirects to login.html if signed out
+    } catch (err) {
+        console.error('Auth check failed:', err);
+        return;
+    }
+    if (!user) return;
+    currentInstructorId = user.uid;
+
+    try {
+        const [courses, students] = await Promise.all([
+            TalentFlowData.getCourses(currentInstructorId),
+            TalentFlowData.getStudentsForInstructor(currentInstructorId),
+        ]);
+        COURSES = courses.map(c => ({ id: c.id, title: c.title }));
+        STUDENTS = students;
+    } catch (err) {
+        console.error('Loading students failed:', err);
+    }
+
+    renderStatCards();
+    populateCourseFilter();
+    render();
+});
