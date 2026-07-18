@@ -3,10 +3,27 @@
    instructor-assignments.js
 ═══════════════════════════════════════════════════════════ */
 
+// auth.js is an ES module fetching an external dependency, so there's
+// no hard guarantee window.TalentFlowAuth exists the instant this
+// script runs. Poll briefly instead of assuming it's already there.
+function waitForTalentFlowAuth(timeoutMs = 8000) {
+    if (window.TalentFlowAuth) return Promise.resolve(window.TalentFlowAuth);
+    return new Promise((resolve) => {
+        const start = Date.now();
+        const timer = setInterval(() => {
+            if (window.TalentFlowAuth) {
+                clearInterval(timer);
+                resolve(window.TalentFlowAuth);
+            } else if (Date.now() - start > timeoutMs) {
+                clearInterval(timer);
+                resolve(null);
+            }
+        }, 50);
+    });
+}
+
 /* ── Profile bridge ─────────────────────────────────────────── */
 
-// Was 'tf_student_profile' — this page is instructor-only, so it was
-// reading the wrong bridge key and could never find anything relevant.
 const PROFILE_KEY = 'tf_instructor_profile';
 
 function getSavedProfile() {
@@ -23,99 +40,6 @@ function applyProfileToNav() {
     }
 }
 
-/* ── SEED DATA ───────────────────────────────────────────── */
-
-const SEED_STUDENTS = [
-    { id: 's1', name: 'Alex Johnson',    avatar: 'https://i.pravatar.cc/40?img=12' },
-    { id: 's2', name: 'Favour Chidi',    avatar: 'https://i.pravatar.cc/40?img=21' },
-    { id: 's3', name: 'Samuel Kofi',     avatar: 'https://i.pravatar.cc/40?img=33' },
-    { id: 's4', name: 'Priya Nair',      avatar: 'https://i.pravatar.cc/40?img=44' },
-    { id: 's5', name: 'James Okafor',    avatar: 'https://i.pravatar.cc/40?img=55' },
-    { id: 's6', name: 'Aisha Mensah',    avatar: 'https://i.pravatar.cc/40?img=16' },
-];
-
-// No longer loaded automatically — real assignments now come from
-// Firestore (see init() below). Left here as a reference for the
-// exact shape each assignment document should match.
-const SEED_ASSIGNMENTS = [
-    {
-        id: 'a1',
-        title: 'Brand Identity Case Study',
-        course: 'Introduction to Product Design',
-        instructions: 'Research a well-known brand, analyse its identity system, and present a redesign concept with rationale.',
-        dueDate: offsetDate(2),
-        maxScore: 100,
-        assignTo: 'all',
-        status: 'published',
-        submissions: [
-            { studentId: 's1', submittedAt: offsetDate(-1), score: null, feedback: '',
-              submissionText: 'I chose Nimbus Coffee Co. for this case study. Their current identity leans heavily on a generic green-and-brown palette that blends in with every other coffee brand on the block, and the logo doesn\'t scale well below 32px.\n\nMy redesign concept shifts the palette to a warmer terracotta and cream combination, paired with a simplified cloud mark that still nods to the "Nimbus" name. I\'ve also proposed a modular logo lockup so it holds up on cup sleeves, app icons, and signage alike.\n\nRationale is in the attached deck — happy to walk through the typography choices if useful.',
-              submissionLink: 'https://www.figma.com/file/example-nimbus-rebrand' },
-            { studentId: 's2', submittedAt: offsetDate(-2), score: 88,   feedback: 'Excellent research depth. Colour theory section was outstanding.',
-              submissionText: 'For this case study I analysed Verde Outdoors, a mid-size outdoor gear retailer. Their current mark is strong but the supporting colour system is inconsistent across packaging vs. digital.\n\nI standardized the palette around three core greens with a single accent (a burnt orange) for CTAs and sale tags, and rebuilt the type system around a single grotesque family at two weights instead of the four they currently mix. Included a one-page brand sheet summarizing usage rules.',
-              submissionLink: '' },
-            { studentId: 's3', submittedAt: null,           score: null, feedback: '',
-              submissionText: '', submissionLink: '' },
-        ]
-    },
-    {
-        id: 'a2',
-        title: 'Wireframe Prototype',
-        course: 'UI/UX Design Fundamentals',
-        instructions: 'Create a mid-fidelity wireframe for a mobile e-commerce checkout flow. Include at least 5 screens.',
-        dueDate: offsetDate(-1),
-        maxScore: 100,
-        assignTo: 'all',
-        status: 'published',
-        submissions: [
-            { studentId: 's1', submittedAt: offsetDate(-3), score: 92,   feedback: 'Great hierarchy and clear user flow. Minor spacing inconsistencies on screen 3.',
-              submissionText: 'Six screens covering cart review, shipping details, payment method, order summary, confirmation, and an error state for a declined card. I focused on keeping the primary CTA in the same position across every screen so the thumb doesn\'t have to hunt for it.\n\nLinked the full clickable prototype below — screen 3 (shipping) still needs a pass on field spacing, I ran out of time to tighten it.',
-              submissionLink: 'https://www.figma.com/proto/example-checkout-flow' },
-            { studentId: 's4', submittedAt: offsetDate(-2), score: 75,   feedback: 'Good effort. Work on the confirmation screen — it feels incomplete.',
-              submissionText: 'Five screens: cart, address, payment, review, confirmation. Kept it minimal on purpose so the flow feels fast. The confirmation screen is intentionally sparse — wanted to avoid overwhelming the user right after checkout, though I see now it might read as unfinished.',
-              submissionLink: 'https://www.figma.com/proto/example-checkout-priya' },
-            { studentId: 's5', submittedAt: offsetDate(-1), score: null, feedback: '',
-              submissionText: 'Submitting a bit rough — five screens covering the core flow (cart → address → payment → review → confirmation). I added a "save card for next time" toggle on the payment screen since that came up a lot in the usability notes from class. Would love feedback on whether the toggle placement makes sense there.',
-              submissionLink: 'https://www.figma.com/proto/example-checkout-james' },
-        ]
-    },
-    {
-        id: 'a3',
-        title: 'Responsive Layout Exercise',
-        course: 'Frontend Development for Designers',
-        instructions: 'Build a fully responsive 3-column blog layout that collapses to a single column on mobile. Use CSS Grid.',
-        dueDate: offsetDate(5),
-        maxScore: 100,
-        assignTo: 'all',
-        status: 'draft',
-        submissions: []
-    },
-    {
-        id: 'a4',
-        title: 'SQL Query Challenge',
-        course: 'Data Analysis with Python & SQL',
-        instructions: 'Complete the 10 SQL query tasks in the provided dataset. Export your results as a CSV.',
-        dueDate: offsetDate(-7),
-        maxScore: 50,
-        assignTo: 'all',
-        status: 'closed',
-        submissions: [
-            { studentId: 's1', submittedAt: offsetDate(-8), score: 46, feedback: 'Near-perfect. Double check question 7 logic.',
-              submissionText: 'All 10 queries completed. For question 7 I used a correlated subquery instead of a window function — got the same row count as the sample output but flagging it in case the approach matters for grading. CSV of results attached.',
-              submissionLink: '' },
-            { studentId: 's2', submittedAt: offsetDate(-8), score: 40, feedback: 'Good understanding of joins. Subqueries need work.',
-              submissionText: 'Completed 9 of 10 — got stuck on question 9 (the nested subquery for repeat customers) and ran out of time to debug it cleanly, so I left my best attempt commented in the file along with notes on where I think the logic breaks down.',
-              submissionLink: '' },
-            { studentId: 's3', submittedAt: offsetDate(-9), score: 35, feedback: 'Partial completion. Please review GROUP BY clauses.',
-              submissionText: 'Completed questions 1-6 and attempted 7-8. Struggled with the GROUP BY + HAVING combination on the aggregate questions — I think I\'m filtering before aggregating instead of after. Ran out of time to fix 9 and 10.',
-              submissionLink: '' },
-            { studentId: 's4', submittedAt: offsetDate(-7), score: 48, feedback: 'Excellent work. Very clean queries throughout.',
-              submissionText: 'All 10 complete. Used CTEs throughout instead of nested subqueries to keep things readable — let me know if you\'d prefer the more traditional subquery style for consistency with the course material. Results CSV attached.',
-              submissionLink: '' },
-        ]
-    },
-];
-
 /* ── QUICK FEEDBACK TEMPLATES ─────────────────────────────── */
 
 const QUICK_FEEDBACK = [
@@ -131,7 +55,9 @@ const QUICK_FEEDBACK = [
 
 /* ── STATE ───────────────────────────────────────────────── */
 
-let assignments = [];          // populated from Firestore once auth resolves — see init() below
+let assignments = [];          // populated from Supabase once auth resolves — see init() below
+let enrolledStudents = [];     // real students enrolled in this instructor's courses
+let courseOptions = [];        // [{id, title}] this instructor's real courses
 let currentInstructorId = null;
 let currentFilter = 'all';
 let currentSearch = '';
@@ -140,25 +66,57 @@ let sortAsc   = true;
 let activeGradeAssignmentId = null; // which assignment is open in grade modal
 
 /* ── STORAGE ─────────────────────────────────────────────── */
-// Firestore owns persistence now (see data-store.js). There's no single
-// shared save() anymore — each mutation below calls TalentFlowData
-// directly, since every edit here only touches its own document.
-
-function deepClone(obj) { return JSON.parse(JSON.stringify(obj)); }
+// Supabase owns persistence now (see data-store.js). Each mutation
+// below calls TalentFlowData directly, since every edit here only
+// touches its own row.
 
 async function init() {
-    // Redirects to login.html if nobody's signed in.
-    const user = await TalentFlowAuth.requireAuth();
+    applyProfileToNav();
+
+    const auth = await waitForTalentFlowAuth();
+    if (!auth) {
+        showToast('⚠️ Could not connect — please refresh the page');
+        return;
+    }
+
+    let user;
+    try {
+        user = await auth.requireAuth(); // redirects to login.html if signed out
+    } catch (err) {
+        console.error('Auth check failed:', err);
+        return;
+    }
+    if (!user) return;
     currentInstructorId = user.uid;
 
     try {
-        assignments = await TalentFlowData.getAssignments(currentInstructorId);
+        const [loadedAssignments, courses, students] = await Promise.all([
+            TalentFlowData.getAssignments(currentInstructorId),
+            TalentFlowData.getCourses(currentInstructorId),
+            TalentFlowData.getStudentsForInstructor(currentInstructorId).catch((err) => {
+                console.error('Could not load enrolled students:', err);
+                return [];
+            }),
+        ]);
+        assignments = loadedAssignments;
+        courseOptions = courses.map(c => ({ id: c.id, title: c.title }));
+        enrolledStudents = students;
     } catch (err) {
         console.error('Loading assignments failed:', err);
         showToast('Could not load assignments — check your connection');
     }
 
+    populateCourseSelect();
     render();
+}
+
+function populateCourseSelect() {
+    const sel = document.getElementById('f-course');
+    if (!sel) return;
+    const current = sel.value;
+    sel.innerHTML = '<option value="">Select a course…</option>' +
+        courseOptions.map(c => `<option value="${escapeHtml(c.title)}">${escapeHtml(c.title)}</option>`).join('');
+    if (current && courseOptions.some(c => c.title === current)) sel.value = current;
 }
 
 /* ── HELPERS ─────────────────────────────────────────────── */
@@ -188,7 +146,14 @@ function escapeHtml(str) {
 
 function uid() { return 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
 
-function getStudent(id) { return SEED_STUDENTS.find(s => s.id === id) || { id, name: 'Unknown', avatar: '' }; }
+function getStudent(id) {
+    return enrolledStudents.find(s => s.id === id) || { id, name: 'Unknown Student', avatar: '' };
+}
+
+function studentAvatarSrc(student) {
+    if (student.avatar) return student.avatar;
+    return window.TalentFlowAuth?.initialsAvatar ? window.TalentFlowAuth.initialsAvatar(student.name || '?') : '';
+}
 
 function pendingCount(a) {
     return a.submissions.filter(s => s.submittedAt && s.score === null).length;
@@ -283,8 +248,8 @@ function renderTable() {
         return `
         <div class="assignment-row" style="animation-delay:${i * 40}ms" data-id="${a.id}">
             <div>
-                <div class="row-title">${a.title}</div>
-                <div class="row-course">${a.course}</div>
+                <div class="row-title">${escapeHtml(a.title)}</div>
+                <div class="row-course">${escapeHtml(a.course)}</div>
             </div>
             <div class="row-due">${formatDate(a.dueDate)}</div>
             <div class="row-sub">
@@ -329,6 +294,7 @@ function openCreateModal() {
     document.getElementById('createModalTitle').textContent = 'Create Assignment';
     document.getElementById('createSubmitBtn').textContent = 'Create Assignment';
     document.getElementById('createForm').reset();
+    populateCourseSelect();
     openModal('createModal');
 }
 
@@ -340,6 +306,7 @@ function openEditModal(id) {
     document.getElementById('createModalTitle').textContent = 'Edit Assignment';
     document.getElementById('createSubmitBtn').textContent  = 'Save Changes';
 
+    populateCourseSelect();
     document.getElementById('f-title').value        = a.title;
     document.getElementById('f-course').value       = a.course;
     document.getElementById('f-instructions').value = a.instructions || '';
@@ -431,9 +398,9 @@ function openGradeModal(id) {
 
     const list = document.getElementById('submissionsList');
 
-    // Show all students; not-submitted ones shown separately
+    // Show all enrolled students; not-submitted ones shown separately
     const submittedStudents = a.submissions.filter(s => s.submittedAt);
-    const notSubmitted = SEED_STUDENTS.filter(
+    const notSubmitted = enrolledStudents.filter(
         st => !a.submissions.some(s => s.studentId === st.id && s.submittedAt)
     );
 
@@ -453,9 +420,9 @@ function openGradeModal(id) {
             return `
             <div class="sub-row">
                 <div class="sub-student">
-                    <img class="sub-avatar" src="${student.avatar}" alt="${student.name}">
+                    <img class="sub-avatar" src="${studentAvatarSrc(student)}" alt="${escapeHtml(student.name)}">
                     <div>
-                        <div class="sub-name">${student.name}</div>
+                        <div class="sub-name">${escapeHtml(student.name)}</div>
                         <div class="sub-date">Submitted ${formatDate(sub.submittedAt)}${isGraded ? ' · Graded' : ''}</div>
                     </div>
                 </div>
@@ -472,9 +439,9 @@ function openGradeModal(id) {
         html += notSubmitted.map(st => `
             <div class="sub-row" style="opacity:.55">
                 <div class="sub-student">
-                    <img class="sub-avatar" src="${st.avatar}" alt="${st.name}">
+                    <img class="sub-avatar" src="${studentAvatarSrc(st)}" alt="${escapeHtml(st.name)}">
                     <div>
-                        <div class="sub-name">${st.name}</div>
+                        <div class="sub-name">${escapeHtml(st.name)}</div>
                         <div class="sub-date">No submission yet</div>
                     </div>
                 </div>
@@ -485,7 +452,7 @@ function openGradeModal(id) {
             </div>`).join('');
     }
 
-    if (!html) html = '<p style="text-align:center;color:var(--slate-4);padding:32px">No submissions for this assignment yet.</p>';
+    if (!html) html = '<p style="text-align:center;color:var(--slate-4);padding:32px">No students are enrolled in this course yet.</p>';
 
     list.innerHTML = html;
     openModal('gradeModal');
@@ -531,10 +498,10 @@ function openSingleGrade(aId, sId) {
 
     // Header
     document.getElementById('sgHeader').innerHTML = `
-        <img class="sgh-avatar" src="${student.avatar}" alt="${student.name}">
+        <img class="sgh-avatar" src="${studentAvatarSrc(student)}" alt="${escapeHtml(student.name)}">
         <div>
-            <div class="sgh-name">${student.name}</div>
-            <div class="sgh-course">${a.title} · ${a.course}</div>
+            <div class="sgh-name">${escapeHtml(student.name)}</div>
+            <div class="sgh-course">${escapeHtml(a.title)} · ${escapeHtml(a.course)}</div>
         </div>`;
 
     // What the student actually submitted, shown read-only above the
@@ -725,5 +692,4 @@ window.addManualSubmission  = addManualSubmission;
 
 /* ── INIT ────────────────────────────────────────────────── */
 
-applyProfileToNav();
 init();
