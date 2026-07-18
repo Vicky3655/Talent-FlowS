@@ -172,6 +172,159 @@ async function updateSubmissions(assignmentId, submissions) {
   if (error) throw error;
 }
 
+/* ── STUDENTS, AGGREGATED FROM ENROLLMENTS ───────────────────
+   There's no dedicated "students" table — a student is just
+   anyone with a row in `enrollments` pointing at one of this
+   instructor's courses. This walks that path: instructor's
+   course ids → enrollments on those courses → distinct
+   students → their public profile + their grades across this
+   instructor's own assignments. */
+
+async function getStudentsForInstructor(instructorId) {
+  const { data: courses, error: cErr } = await supabase
+    .from('courses')
+    .select('id, title')
+    .eq('instructor_id', instructorId);
+  if (cErr) throw cErr;
+
+  const courseIds = (courses || []).map((c) => c.id);
+  const courseTitleById = {};
+  (courses || []).forEach((c) => { courseTitleById[c.id] = c.title; });
+  if (!courseIds.length) return [];
+
+  const { data: enrollments, error: eErr } = await supabase
+    .from('enrollments')
+    .select('student_id, course_id, progress, enrolled_at')
+    .in('course_id', courseIds);
+  if (eErr) throw eErr;
+
+  const byStudent = {};
+  (enrollments || []).forEach((e) => {
+    if (!byStudent[e.student_id]) {
+      byStudent[e.student_id] = { courseIds: [], progressSum: 0, progressCount: 0, enrolledAt: e.enrolled_at };
+    }
+    const rec = byStudent[e.student_id];
+    rec.courseIds.push(e.course_id);
+    if (typeof e.progress === 'number') { rec.progressSum += e.progress; rec.progressCount += 1; }
+    if (e.enrolled_at && (!rec.enrolledAt || e.enrolled_at < rec.enrolledAt)) rec.enrolledAt = e.enrolled_at;
+  });
+
+  const studentIds = Object.keys(byStudent);
+  if (!studentIds.length) return [];
+
+  const { data: profiles, error: pErr } = await supabase
+    .from('public_profiles')
+    .select('id, full_name, avatar')
+    .in('id', studentIds);
+  if (pErr) console.error('Could not load student profiles:', pErr);
+  const profileById = {};
+  (profiles || []).forEach((p) => { profileById[p.id] = p; });
+
+  // Average grade per student, computed from this instructor's own
+  // assignments — the only place scores actually live.
+  const assignments = await getAssignments(instructorId);
+  const gradeStats = {};
+  assignments.forEach((a) => {
+    const max = a.maxScore || 100;
+    (a.submissions || []).forEach((s) => {
+      if (s.score === null || s.score === undefined) return;
+      if (!gradeStats[s.studentId]) gradeStats[s.studentId] = { sum: 0, count: 0 };
+      gradeStats[s.studentId].sum += (s.score / max) * 100;
+      gradeStats[s.studentId].count += 1;
+    });
+  });
+
+  return studentIds.map((id) => {
+    const rec = byStudent[id];
+    const p = profileById[id] || {};
+    const g = gradeStats[id];
+    return {
+      id,
+      name: p.full_name || 'Talent Flow Student',
+      avatar: p.avatar || '',
+      courseIds: rec.courseIds,
+      courseTitles: rec.courseIds.map((cid) => courseTitleById[cid]).filter(Boolean),
+      grade: g && g.count ? Math.round(g.sum / g.count) : null,
+      enrolledAt: rec.enrolledAt || null,
+      // Nothing in the schema tracks attendance/last-active yet, so
+      // these are honest neutral defaults rather than invented numbers.
+      status: 'active',
+      lastActive: null,
+    };
+  });
+}
+
+/* ── STUDENT-FACING ASSIGNMENTS ──────────────────────────────
+   Assignments are matched to a student by course title (the
+   same text-matching the rest of the app already relies on —
+   `assignments.course` and `enrollments.course_title` are both
+   plain text, not a foreign key). */
+
+async function getAssignmentsForStudent(studentId) {
+  const { data: enrollments, error: eErr } = await supabase
+    .from('enrollments')
+    .select('course_title')
+    .eq('student_id', studentId);
+  if (eErr) throw eErr;
+
+  const courseTitles = [...new Set((enrollments || []).map((e) => e.course_title).filter(Boolean))];
+  if (!courseTitles.length) return [];
+
+  const { data: assignments, error: aErr } = await supabase
+    .from('assignments')
+    .select('*')
+    .in('course', courseTitles)
+    .neq('status', 'draft')
+    .order('due_date', { ascending: true });
+  if (aErr) throw aErr;
+
+  return (assignments || []).map((a) => {
+    const mapped = mapAssignmentRow(a);
+    const submission = mapped.submissions.find((s) => s.studentId === studentId) || null;
+    return { ...mapped, submission };
+  });
+}
+
+async function submitStudentAssignment(assignmentId, studentId, submission) {
+  const { data, error } = await supabase
+    .from('assignments')
+    .select('submissions')
+    .eq('id', assignmentId)
+    .single();
+  if (error) throw error;
+
+  const submissions = data.submissions || [];
+  const idx = submissions.findIndex((s) => s.studentId === studentId);
+  const now = new Date().toISOString();
+
+  if (idx >= 0) {
+    submissions[idx] = {
+      ...submissions[idx],
+      submittedAt: now,
+      submissionText: submission.text || '',
+      submissionLink: submission.link || '',
+      // Resubmitting clears any earlier grade — the instructor needs
+      // to look at the new work, not the old score.
+      score: null,
+      feedback: '',
+      gradedAt: null,
+    };
+  } else {
+    submissions.push({
+      studentId,
+      submittedAt: now,
+      score: null,
+      feedback: '',
+      submissionText: submission.text || '',
+      submissionLink: submission.link || '',
+    });
+  }
+
+  const { error: uErr } = await supabase.from('assignments').update({ submissions }).eq('id', assignmentId);
+  if (uErr) throw uErr;
+  return submissions.find((s) => s.studentId === studentId);
+}
+
 /* ── PUBLIC INTERFACE ─────────────────────────────────────── */
 window.TalentFlowData = {
   getCourses,
@@ -182,4 +335,7 @@ window.TalentFlowData = {
   saveAssignment,
   deleteAssignmentDoc,
   updateSubmissions,
+  getStudentsForInstructor,
+  getAssignmentsForStudent,
+  submitStudentAssignment,
 };
