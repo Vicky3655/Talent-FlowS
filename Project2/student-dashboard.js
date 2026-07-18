@@ -1,38 +1,44 @@
 /* ═══════════════════════════════════════════
    TALENT FLOW — Student Dashboard
    student-dashboard.js
-   Welcome-banner name comes from the signed-in Firebase account
+   Welcome-banner name comes from the signed-in Supabase account
    (see the DOMContentLoaded handler below) — app-nav.js handles
-   the rest of the nav (small avatar, popup name/role).
+   the rest of the nav (small avatar, popup name/role). Courses,
+   assignments, and deadlines now come from Supabase via
+   TalentFlowData rather than empty placeholder arrays.
 ═══════════════════════════════════════════ */
 
-// ── DATA ──────────────────────────────────
-// Fresh account, nothing recorded yet — every value here reflects
-// someone who just signed up and hasn't done anything on the
-// platform, rather than pre-filled demo activity. Real numbers
-// should replace these once actual enrollment/progress tracking
-// exists; for now this is the honest "empty" state.
+// auth.js is an ES module fetching an external dependency, so there's
+// no hard guarantee window.TalentFlowAuth exists the instant this
+// script's DOMContentLoaded callback fires.
+function waitForTalentFlowAuth(timeoutMs = 8000) {
+    if (window.TalentFlowAuth) return Promise.resolve(window.TalentFlowAuth);
+    return new Promise((resolve) => {
+        const start = Date.now();
+        const timer = setInterval(() => {
+            if (window.TalentFlowAuth) {
+                clearInterval(timer);
+                resolve(window.TalentFlowAuth);
+            } else if (Date.now() - start > timeoutMs) {
+                clearInterval(timer);
+                resolve(null);
+            }
+        }, 50);
+    });
+}
 
+// ── DATA (populated once auth resolves — see DOMContentLoaded below) ──
 const STUDENT = {
     streak: 0,
 };
 
 let COURSES = [];
+let currentStudentId = null;
 
 const ASSIGNMENTS = {
     pending:   [],
     submitted: [],
     graded:    [],
-};
-
-const WEEKLY_HOURS  = [0, 0, 0, 0, 0, 0, 0];
-const DAYS          = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const TODAY_IDX     = (new Date().getDay() + 6) % 7; // Mon = 0
-
-const PARTICIPATION = {
-    labels: ['Attendance', 'Quizzes', 'Forum', 'Assignments', 'Projects'],
-    scores: [0, 0, 0, 0, 0],
-    color:  '#2563EB',
 };
 
 const DEADLINES = [];
@@ -90,47 +96,120 @@ function drawSparkline(canvas, points, color = '#2563EB') {
     ctx.stroke();
 }
 
+function daysUntil(dateStr) {
+    const now = new Date(); now.setHours(0, 0, 0, 0);
+    const due = new Date(dateStr); due.setHours(0, 0, 0, 0);
+    return Math.round((due - now) / 86400000);
+}
+
+// ── LOAD REAL DATA ────────────────────────
+
+async function loadAssignmentsAndDeadlines() {
+    const raw = await TalentFlowData.getAssignmentsForStudent(currentStudentId);
+
+    ASSIGNMENTS.pending = [];
+    ASSIGNMENTS.submitted = [];
+    ASSIGNMENTS.graded = [];
+    DEADLINES.length = 0;
+
+    let gradeSum = 0, gradeCount = 0;
+
+    raw.forEach((a) => {
+        const sub = a.submission;
+        const max = a.maxScore || 100;
+        const days = a.dueDate ? daysUntil(a.dueDate) : null;
+
+        if (sub && sub.score !== null && sub.score !== undefined) {
+            gradeSum += (sub.score / max) * 100;
+            gradeCount++;
+            ASSIGNMENTS.graded.push({
+                title: a.title, course: a.course,
+                grade: Math.round((sub.score / max) * 100) + '%',
+                urgency: 'done', dueLabel: 'Graded',
+            });
+        } else if (sub && sub.submittedAt) {
+            ASSIGNMENTS.submitted.push({
+                title: a.title, course: a.course,
+                urgency: 'done', dueLabel: 'Awaiting grading',
+            });
+        } else {
+            const urgency = days === null ? 'normal' : days < 0 ? 'urgent' : days <= 2 ? 'urgent' : days <= 5 ? 'soon' : 'normal';
+            const dueLabel = days === null ? 'No due date'
+                : days < 0 ? `${Math.abs(days)}d overdue`
+                : days === 0 ? 'Due today'
+                : days === 1 ? 'Due tomorrow'
+                : `Due in ${days}d`;
+            ASSIGNMENTS.pending.push({ title: a.title, course: a.course, urgency, dueLabel });
+
+            if (a.dueDate) {
+                DEADLINES.push({ title: a.title, course: a.course, date: new Date(a.dueDate + 'T12:00:00') });
+            }
+        }
+    });
+
+    DEADLINES.sort((a, b) => a.date - b.date);
+
+    return {
+        avgGrade: gradeCount ? Math.round(gradeSum / gradeCount) : 0,
+        gradedCount: ASSIGNMENTS.graded.length,
+    };
+}
+
 // ── INIT ──────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', async () => {
-    // Fetched independently rather than relying on app-nav.js's timing —
-    // that script runs separately and may not have finished yet.
-    const auth = window.TalentFlowAuth;
+    const auth = await waitForTalentFlowAuth();
+    if (!auth) {
+        document.querySelectorAll('.qs-value').forEach(el => { el.textContent = '—'; });
+        return;
+    }
+
     let user = null;
-    if (auth) {
-        try {
-            user = await auth.requireAuth();
-            let profile = {};
-            try { profile = (await auth.loadProfile(user.uid)) || {}; }
-            catch (err) { console.error('Firestore profile read failed (using basic account info):', err); }
+    let profile = {};
+    try {
+        user = await auth.requireAuth();
+        try { profile = (await auth.loadProfile(user.uid)) || {}; }
+        catch (err) { console.error('Profile read failed (using basic account info):', err); }
 
-            const displayName = profile.fullName || user.displayName
-                || (user.email ? user.email.split('@')[0] : 'there');
-            const wbName = document.querySelector('.wb-name');
-            if (wbName) wbName.textContent = `${displayName} 👋`;
-        } catch (err) {
-            console.error('Could not resolve signed-in user for welcome banner:', err);
-        }
+        const displayName = profile.fullName || user.displayName
+            || (user.email ? user.email.split('@')[0] : 'there');
+        const wbName = document.querySelector('.wb-name');
+        if (wbName) wbName.textContent = `${displayName} 👋`;
+    } catch (err) {
+        console.error('Could not resolve signed-in user for welcome banner:', err);
+        return;
     }
+    if (!user) return;
+    currentStudentId = user.uid;
 
-    // Real enrollments, if reachable — feeds both the Active Courses
-    // list and the "Enrolled Courses" quick stat below.
-    if (auth && user) {
-        try {
-            const enrollments = await auth.listMyEnrollments();
-            COURSES = enrollments.map((e) => ({
-                title:      e.courseTitle,
-                thumb:      e.thumb,
-                progress:   e.progress || 0,
-                lessons:    e.lessons || 0,
-                completed:  e.completedLessons || 0,
-                instructor: e.instructorName || '',
-            }));
-        } catch (err) {
-            console.error('Could not load enrollments (showing none):', err);
-        }
+    // Real enrollments feed both the Active Courses list and the
+    // "Enrolled Courses" quick stat below.
+    try {
+        const enrollments = await auth.listMyEnrollments();
+        COURSES = enrollments.map((e) => ({
+            title:      e.courseTitle,
+            thumb:      e.thumb,
+            progress:   e.progress || 0,
+            lessons:    e.lessons || 0,
+            completed:  e.completedLessons || 0,
+            instructor: e.instructorName || '',
+        }));
+    } catch (err) {
+        console.error('Could not load enrollments (showing none):', err);
     }
-    setEnrolledCountStat(COURSES.length);
+    setStat('Enrolled Courses', COURSES.length);
+
+    let avgGrade = 0, gradedCount = 0;
+    try {
+        const result = await loadAssignmentsAndDeadlines();
+        avgGrade = result.avgGrade;
+        gradedCount = result.gradedCount;
+    } catch (err) {
+        console.error('Could not load assignments (showing none):', err);
+    }
+    setStat('Assignments Done', gradedCount);
+    setStat('Assignments Pending', ASSIGNMENTS.pending.length);
+    setStat('Avg. Grade', avgGrade, '%');
 
     setGreeting();
     animateStreak();
@@ -138,20 +217,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderCourses();
     renderAssignments('pending');
     initAssignTabs();
-    renderWeeklyChart();
-    renderRadar();
     renderDeadlines();
     initModal();
     initNav();
     initWelcomeDismiss();
 });
 
-function setEnrolledCountStat(count) {
+function setStat(label, value, suffix = '') {
     document.querySelectorAll('.qs-card').forEach((card) => {
-        const label = card.querySelector('.qs-label');
-        if (label && label.textContent.trim() === 'Enrolled Courses') {
+        const lbl = card.querySelector('.qs-label');
+        if (lbl && lbl.textContent.trim() === label) {
             const valEl = card.querySelector('.qs-value');
-            if (valEl) valEl.dataset.target = String(count);
+            if (valEl) {
+                valEl.dataset.target = String(value);
+                if (suffix) valEl.dataset.suffix = suffix;
+            }
         }
     });
 }
@@ -179,14 +259,13 @@ function animateStreak() {
 function initQuickStats() {
     document.querySelectorAll('.qs-card').forEach(card => {
         const valEl  = card.querySelector('.qs-value');
-        const target = parseInt(valEl.dataset.target);
+        const target = parseInt(valEl.dataset.target) || 0;
         const suffix = valEl.dataset.suffix || '';
         animateNumber(valEl, target, suffix, 900);
 
         const canvas = card.querySelector('.qs-spark');
         if (canvas) {
-            const pts = canvas.dataset.points.split(',').map(Number);
-            drawSparkline(canvas, pts, '#2563EB');
+            drawSparkline(canvas, Array(5).fill(target || 0.1), '#2563EB');
         }
     });
 }
@@ -252,7 +331,7 @@ function renderAssignments(tab) {
 
     list.innerHTML = items.map((a, i) => {
         const actionBtn = tab === 'pending'
-            ? `<button class="ai-action-btn" onclick="openSubmitModal('${a.title}', '${a.course}')">Submit</button>`
+            ? `<button class="ai-action-btn" onclick="openSubmitModal('${a.title.replace(/'/g, "\\'")}', '${a.course.replace(/'/g, "\\'")}')">Submit</button>`
             : '';
         const gradeTag = a.grade ? `<span class="ai-grade">${a.grade}</span>` : '';
         return `
@@ -283,160 +362,26 @@ function initAssignTabs() {
     });
 }
 
-// ── WEEKLY CHART ──────────────────────────
-
-function renderWeeklyChart() {
-    const barsEl = document.getElementById('weeklyBars');
-    const maxH   = 90;
-    const maxVal = Math.max(...WEEKLY_HOURS) || 1;
-
-    barsEl.innerHTML = WEEKLY_HOURS.map((h, i) => `
-        <div class="wc-bar-wrap">
-            <span class="wc-val">${h > 0 ? h + 'h' : ''}</span>
-            <div class="wc-bar${i === TODAY_IDX ? ' today' : ''}"
-                 data-height="${(h / maxVal) * maxH}"
-                 style="height:0px"></div>
-        </div>
-    `).join('');
-
-    setTimeout(() => {
-        barsEl.querySelectorAll('.wc-bar').forEach(bar => {
-            bar.style.height = bar.dataset.height + 'px';
-        });
-    }, 300);
-
-    const total   = WEEKLY_HOURS.reduce((a, b) => a + b, 0);
-    const avg     = (total / (WEEKLY_HOURS.filter(h => h > 0).length || 1)).toFixed(1);
-    const bestIdx = WEEKLY_HOURS.indexOf(Math.max(...WEEKLY_HOURS));
-
-    const totalEl = document.getElementById('totalHrs');
-    const avgEl   = document.getElementById('avgHrs');
-    const bestEl  = document.getElementById('bestDay');
-
-    if (totalEl) animateNumber(totalEl, total, 'h', 800);
-    if (avgEl)   avgEl.textContent = avg + 'h';
-    if (bestEl)  bestEl.textContent = total > 0 ? DAYS[bestIdx] : '—';
-}
-
-// ── PARTICIPATION RADAR ───────────────────
-
-function renderRadar() {
-    const canvas = document.getElementById('radarCanvas');
-    if (!canvas) return;
-    const ctx    = canvas.getContext('2d');
-    const W = canvas.width, H = canvas.height;
-    const cx = W / 2, cy = H / 2;
-    const R      = 82;
-    const labels = PARTICIPATION.labels;
-    const scores = PARTICIPATION.scores.map(s => s / 100);
-    const n      = labels.length;
-    const color  = PARTICIPATION.color;
-
-    function pt(idx, r) {
-        const angle = (Math.PI * 2 * idx) / n - Math.PI / 2;
-        return [cx + r * Math.cos(angle), cy + r * Math.sin(angle)];
-    }
-
-    ctx.clearRect(0, 0, W, H);
-
-    let frame = 0;
-    const totalFrames = 40;
-
-    function drawFrame() {
-        const t    = Math.min(frame / totalFrames, 1);
-        const ease = 1 - Math.pow(1 - t, 3);
-
-        ctx.clearRect(0, 0, W, H);
-
-        // Grid rings
-        [0.25, 0.5, 0.75, 1].forEach(frac => {
-            ctx.beginPath();
-            for (let i = 0; i < n; i++) {
-                const [x, y] = pt(i, R * frac);
-                i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-            }
-            ctx.closePath();
-            ctx.strokeStyle = frac === 1 ? '#E2E8F0' : '#F1F5F9';
-            ctx.lineWidth   = 1;
-            ctx.stroke();
-        });
-
-        // Spokes
-        for (let i = 0; i < n; i++) {
-            const [x, y] = pt(i, R);
-            ctx.beginPath();
-            ctx.moveTo(cx, cy);
-            ctx.lineTo(x, y);
-            ctx.strokeStyle = '#E2E8F0';
-            ctx.lineWidth   = 1;
-            ctx.stroke();
-        }
-
-        // Animated polygon
-        ctx.beginPath();
-        for (let i = 0; i < n; i++) {
-            const [x, y] = pt(i, R * scores[i] * ease);
-            i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-        }
-        ctx.closePath();
-        ctx.fillStyle   = color + '22';
-        ctx.fill();
-        ctx.strokeStyle = color;
-        ctx.lineWidth   = 2;
-        ctx.stroke();
-
-        // Dots
-        for (let i = 0; i < n; i++) {
-            const [x, y] = pt(i, R * scores[i] * ease);
-            ctx.beginPath();
-            ctx.arc(x, y, 4, 0, Math.PI * 2);
-            ctx.fillStyle = color;
-            ctx.fill();
-        }
-
-        // Labels
-        for (let i = 0; i < n; i++) {
-            const [x, y] = pt(i, R + 16);
-            ctx.font          = '600 11px Plus Jakarta Sans, sans-serif';
-            ctx.fillStyle     = '#64748B';
-            ctx.textAlign     = 'center';
-            ctx.textBaseline  = 'middle';
-            ctx.fillText(labels[i], x, y);
-        }
-
-        if (frame < totalFrames) { frame++; requestAnimationFrame(drawFrame); }
-    }
-    drawFrame();
-
-    // Legend
-    const legend = document.getElementById('radarLegend');
-    if (legend) {
-        const colors = ['#2563EB', '#16A34A', '#EA580C', '#7C3AED', '#0891B2'];
-        legend.innerHTML = labels.map((lbl, i) => `
-            <div class="rl-item">
-                <div class="rl-dot" style="background:${colors[i % colors.length]}"></div>
-                <span>${lbl}: ${PARTICIPATION.scores[i]}%</span>
-            </div>
-        `).join('');
-    }
-}
-
 // ── DEADLINES ─────────────────────────────
 
 function renderDeadlines() {
     const list  = document.getElementById('deadlineList');
     const badge = document.getElementById('deadlineCount');
     const now   = new Date();
-    const sorted = [...DEADLINES].sort((a, b) => a.date - b.date);
 
-    if (badge) badge.textContent = sorted.length;
+    if (badge) badge.textContent = DEADLINES.length;
+
+    if (!DEADLINES.length) {
+        list.innerHTML = `<p style="text-align:center;color:var(--slate-4);padding:20px;font-size:13px">Nothing due right now.</p>`;
+        return;
+    }
 
     const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-    list.innerHTML = sorted.map((d, i) => {
+    list.innerHTML = DEADLINES.map((d, i) => {
         const daysLeft = Math.ceil((d.date - now) / 86400000);
         const urgency  = daysLeft <= 3 ? 'urgent' : daysLeft <= 7 ? 'soon' : 'normal';
-        const label    = daysLeft === 1 ? 'Tomorrow' : daysLeft === 0 ? 'Today!' : `${daysLeft}d left`;
+        const label    = daysLeft === 1 ? 'Tomorrow' : daysLeft <= 0 ? 'Overdue' : `${daysLeft}d left`;
         return `
             <div class="dl-item" style="animation-delay:${i * 60}ms">
                 <div class="dl-date-box ${urgency}">
@@ -460,64 +405,29 @@ function openSubmitModal(title, course) {
     currentAssignment = { title, course };
     document.getElementById('modalTitle').textContent  = 'Submit: ' + title;
     document.getElementById('modalCourse').textContent = course;
-    document.getElementById('filePreview').style.display = 'none';
+    document.getElementById('submitLink').value = '';
     document.getElementById('submitNote').value = '';
     document.getElementById('submitModal').classList.add('open');
 }
+window.openSubmitModal = openSubmitModal;
 
 function initModal() {
     const modal      = document.getElementById('submitModal');
     const closeBtn   = document.getElementById('closeModal');
     const confirmBtn = document.getElementById('confirmSubmit');
-    const uploadZone = document.getElementById('uploadZone');
-    const fileInput  = document.getElementById('fileInput');
-    const filePreview = document.getElementById('filePreview');
 
     closeBtn.addEventListener('click', () => modal.classList.remove('open'));
     modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('open'); });
 
-    uploadZone.addEventListener('click', () => fileInput.click());
-    uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
-    uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
-    uploadZone.addEventListener('drop', e => {
-        e.preventDefault();
-        uploadZone.classList.remove('drag-over');
-        const file = e.dataTransfer.files[0];
-        if (file) showFilePreview(file);
-    });
-
-    fileInput.addEventListener('change', () => {
-        if (fileInput.files[0]) showFilePreview(fileInput.files[0]);
-    });
-
-    function showFilePreview(file) {
-        filePreview.style.display = 'flex';
-        filePreview.innerHTML = `
-            <svg width="18" height="18" fill="none" stroke="#2563EB" stroke-width="1.8" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round"
-                      d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1
-                      13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25
-                      0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125
-                      1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/>
-            </svg>
-            <span>${file.name}</span>
-            <span style="color:#94A3B8;font-size:11px;margin-left:auto">${(file.size / 1024).toFixed(0)} KB</span>
-        `;
-    }
-
-    confirmBtn.addEventListener('click', () => {
+    confirmBtn.addEventListener('click', async () => {
         if (!currentAssignment) return;
-        const idx = ASSIGNMENTS.pending.findIndex(a => a.title === currentAssignment.title);
-        if (idx !== -1) {
-            const [item] = ASSIGNMENTS.pending.splice(idx, 1);
-            item.dueLabel = 'Just submitted';
-            item.urgency  = 'done';
-            ASSIGNMENTS.submitted.unshift(item);
-        }
+        // The dashboard only knows the assignment by title/course (that's
+        // all the summary cards carry) — the assignments page is the
+        // fuller, id-backed place to submit; this quick action points
+        // there so the real record actually gets updated.
         modal.classList.remove('open');
-        showToast('Assignment submitted successfully! ✅');
-        if (currentTab === 'pending' || currentTab === 'submitted') renderAssignments(currentTab);
-        currentAssignment = null;
+        showToast('Opening your assignments so you can attach your work…');
+        setTimeout(() => { window.location.href = 'assignment.html'; }, 700);
     });
 }
 
@@ -572,7 +482,7 @@ function initNav() {
     }
 
     const notifBtn = document.getElementById('notifBtn');
-    if (notifBtn) notifBtn.addEventListener('click', () => showToast('3 new notifications 🔔'));
+    if (notifBtn) notifBtn.addEventListener('click', () => showToast('No new notifications.'));
 
     const hamburger = document.getElementById('hamburgerBtn');
     const sidebar   = document.getElementById('sidebar');
