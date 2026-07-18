@@ -10,7 +10,7 @@
    — written by profile.js (and, for instructors, settings.js) the
    moment a profile form is saved. Reading the bridge first means
    the nav paints instantly from whatever's cached on this device;
-   this file then reconciles with Firestore (the cross-device
+   this file then reconciles with Supabase (the cross-device
    source of truth) and refreshes the bridge, so a photo or name
    changed on ANOTHER device shows up here too — not just on the
    device that made the change.
@@ -20,12 +20,6 @@
    defaults to instructor) — set on every profile-aware page,
    including instructor-profile.html, student-profile.html, and
    student-courses.html.
-
-   Previously, student pages skipped the bridge entirely and only
-   ever showed a Google account photo or generated initials — so a
-   student's own uploaded avatar never actually appeared here, and
-   could even flicker back to the wrong image after profile.js set
-   it correctly. Both roles now go through the same logic below.
    ============================================================ */
 (function () {
   'use strict';
@@ -51,13 +45,48 @@
     }
   }
 
+  // auth.js is an ES module fetching an external dependency, so there's
+  // no hard guarantee window.TalentFlowAuth exists the instant this
+  // script runs. Poll briefly for it instead of checking once and
+  // leaving the nav permanently stuck on whatever was cached (or
+  // nothing, which is what an empty <img src=""> renders as — a
+  // broken image with clipped alt text).
+  function waitForTalentFlowAuth(timeoutMs = 8000) {
+    if (window.TalentFlowAuth) return Promise.resolve(window.TalentFlowAuth);
+    return new Promise((resolve) => {
+      const start = Date.now();
+      const timer = setInterval(() => {
+        if (window.TalentFlowAuth) {
+          clearInterval(timer);
+          resolve(window.TalentFlowAuth);
+        } else if (Date.now() - start > timeoutMs) {
+          clearInterval(timer);
+          resolve(null);
+        }
+      }, 50);
+    });
+  }
+
+  // Self-contained fallback so the avatar is never blank/broken even
+  // if TalentFlowAuth (and its initialsAvatar helper) never loads.
+  function localInitialsAvatar(label) {
+    const initial = (label || '?').trim().charAt(0).toUpperCase() || '?';
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80">`
+      + `<rect width="80" height="80" rx="40" fill="#2563eb"/>`
+      + `<text x="50%" y="52%" text-anchor="middle" dominant-baseline="middle" `
+      + `font-family="Inter, sans-serif" font-size="34" fill="#ffffff" font-weight="700">${initial}</text></svg>`;
+    return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+  }
+
   function apply(bridgeKey, user) {
     const bridge = readBridge(bridgeKey);
     const name = bridge?.fullName || user?.displayName || user?.email || '';
     const role = bridge?.role || '';
     let avatar = bridge?.avatar || user?.photoURL || '';
-    if (!avatar && name && window.TalentFlowAuth?.initialsAvatar) {
-      avatar = window.TalentFlowAuth.initialsAvatar(name);
+    if (!avatar) {
+      avatar = (name && window.TalentFlowAuth?.initialsAvatar)
+        ? window.TalentFlowAuth.initialsAvatar(name)
+        : localInitialsAvatar(name || (bridgeKey === STUDENT_BRIDGE_KEY ? 'S' : 'T'));
     }
 
     const topbarImg = document.getElementById('nav-avatar-img');
@@ -93,10 +122,14 @@
   function initForRole(bridgeKey) {
     apply(bridgeKey); // instant paint from whatever's cached on this device
 
-    if (window.TalentFlowAuth) {
-      window.TalentFlowAuth.requireAuth().then(async (user) => {
+    waitForTalentFlowAuth().then((auth) => {
+      if (!auth) {
+        console.error("Talent Flow's sign-in service did not load — showing cached profile info only.");
+        return;
+      }
+      auth.requireAuth().then(async (user) => {
         try {
-          const profile = await window.TalentFlowAuth.loadProfile(user.uid);
+          const profile = await auth.loadProfile(user.uid);
           if (profile) {
             writeBridge(bridgeKey, {
               fullName: profile.fullName || user.displayName || '',
@@ -106,11 +139,11 @@
             });
           }
         } catch (err) {
-          console.error('Could not refresh profile from Firestore:', err);
+          console.error('Could not refresh profile from Supabase:', err);
         }
         apply(bridgeKey, user);
       });
-    }
+    });
 
     // Live-update if the profile changes in another tab...
     window.addEventListener('storage', (e) => {
