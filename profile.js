@@ -6,19 +6,34 @@
    data-profile-page="instructor|student" attribute on <body>,
    so one file can serve both pages' different field sets.
 
-   Avatars are uploaded to Firebase Storage on save, and only the
-   resulting download URL is written to Firestore — that URL
-   works for anyone who loads it, on any device, which is what
-   lets it show up somewhere like a course card in a student's
-   browser (see data-store.js's getPublishedCourses()).
+   Avatars are uploaded to Supabase Storage on save, and only the
+   resulting download URL is written to the profile row — that
+   URL works for anyone who loads it, on any device, which is
+   what lets it show up somewhere like a course card in a
+   student's browser (see data-store.js's getPublishedCourses()).
 
    Both pages also mirror their data into a small localStorage
    bridge (tf_instructor_profile / tf_student_profile) — on every
    save AND on every page load — so other same-device pages
    (settings, the topbar, the mobile sidebar) update instantly
-   without waiting on a Firestore round trip. Firestore stays the
+   without waiting on a round trip. Supabase stays the
    cross-device source of truth; the bridge is just a fast local
    cache of it.
+
+   ------------------------------------------------------------
+   Why #profileView and #profileFormSection both start `hidden`
+   in the HTML, and why that used to produce a blank page:
+   auth.js is a `type="module"` script that has to fetch
+   supabase-js from esm.sh before it can set
+   window.TalentFlowAuth. If this script ever checked for that
+   object exactly once and bailed out when it wasn't there yet
+   (slow network, cold Supabase project, blocked CDN request),
+   both sections stayed hidden forever — a permanently blank
+   page, with no error and nothing to retry. `boot()` below
+   fixes that: it actively waits for auth to show up, shows a
+   real loading state while it does, and shows a real,
+   retryable error message if it never does — the page is never
+   silently blank.
    ============================================================ */
 
 const CONFIG = {
@@ -94,10 +109,6 @@ function renderLinks(container, links, linkClass) {
 }
 
 // ── Cross-page profile bridge ──────────────────────────────
-// Small, dependency-free localStorage read/write pair. Writes are
-// merged (not overwritten), so a field this page doesn't touch —
-// e.g. "username", which only settings.js edits — never gets
-// wiped out by a save made here.
 function readProfileBridge(key) {
   try {
     const raw = localStorage.getItem(key);
@@ -112,170 +123,213 @@ function writeProfileBridge(key, patch) {
   try {
     const merged = { ...(readProfileBridge(key) || {}), ...patch };
     localStorage.setItem(key, JSON.stringify(merged));
-    // "storage" events only fire in OTHER tabs — this lets anything
-    // listening on THIS same page/tab react right away too.
     window.dispatchEvent(new CustomEvent('tf-profile-updated', { detail: { key } }));
   } catch (err) {
     console.error('Could not update the shared profile bridge:', err);
   }
 }
 
-document.addEventListener('DOMContentLoaded', async () => {
+// ── Robust wait for window.TalentFlowAuth ──────────────────
+// auth.js is an ES module fetching an external dependency; there is
+// no guarantee it has finished by the moment this classic script's
+// DOMContentLoaded callback fires on every browser/network condition.
+// Rather than checking once and giving up, poll briefly for it.
+function waitForTalentFlowAuth(timeoutMs = 8000) {
+  if (window.TalentFlowAuth) return Promise.resolve(window.TalentFlowAuth);
+  return new Promise((resolve) => {
+    const start = Date.now();
+    const timer = setInterval(() => {
+      if (window.TalentFlowAuth) {
+        clearInterval(timer);
+        resolve(window.TalentFlowAuth);
+      } else if (Date.now() - start > timeoutMs) {
+        clearInterval(timer);
+        resolve(null);
+      }
+    }, 50);
+  });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
   const pageType = document.body.dataset.profilePage; // 'instructor' | 'student'
   const cfg = CONFIG[pageType];
-  const auth = window.TalentFlowAuth;
-  if (!cfg || !auth) return;
+  if (!cfg) return;
 
-  const user = await auth.requireAuth(); // redirects to login.html if signed out
-  let profile = {};
-  try {
-    profile = (await auth.loadProfile(user.uid)) || {};
-  } catch (err) {
-    console.error('Firestore profile read failed — showing the blank form instead:', err);
+  const loadingEl   = document.getElementById('profileLoading');
+  const errorEl     = document.getElementById('profileError');
+  const errorTextEl = document.getElementById('profileErrorText');
+  const retryBtn    = document.getElementById('profileRetryBtn');
+  const viewSection = document.getElementById('profileView');
+  const formSection = document.getElementById('profileFormSection');
+
+  // stage: 'loading' | 'error' | 'ready'
+  function setStage(stage, message) {
+    if (loadingEl) loadingEl.hidden = stage !== 'loading';
+    if (errorEl)   errorEl.hidden   = stage !== 'error';
+    if (stage === 'error' && errorTextEl && message) errorTextEl.textContent = message;
+    if (stage === 'loading' || stage === 'error') {
+      if (viewSection) viewSection.hidden = true;
+      if (formSection) formSection.hidden = true;
+    }
   }
 
-  const viewSection   = document.getElementById('profileView');
-  const formSection   = document.getElementById('profileFormSection');
-  const form          = document.getElementById('profileForm');
-  const avatarPreview = document.getElementById('avatarPreview');
-  const avatarInput   = document.getElementById('avatarInput');
-  const logoutBtn     = document.getElementById('logoutBtn');
-  const editBtn       = document.getElementById('editProfileBtn');
-  const topbarAvatar  = document.getElementById('nav-avatar-img');
-  const submitBtn     = form ? form.querySelector('button[type="submit"]') : null;
+  async function boot() {
+    setStage('loading');
 
-  // Photo upload/storage IS wired up now (Firebase Storage) — this
-  // fallback only kicks in for someone who hasn't picked a photo at all:
-  // their Google account photo, or a generated initial.
-  const fallbackAvatarUrl = user.photoURL || auth.initialsAvatar(profile.fullName || user.displayName || user.email);
-
-  // The actual File the person picked in this session, if any. It's
-  // uploaded to Storage on SAVE, not on selection — so a half-finished
-  // pick can never race the rest of the save with a stale preview.
-  let pendingAvatarFile = null;
-
-  function fillForm(p) {
-    cfg.fields.forEach((id) => {
-      const el = document.getElementById(id);
-      if (el && p[id] !== undefined) el.value = p[id];
-    });
-    const nameEl = document.getElementById('fullName');
-    if (nameEl && !nameEl.value) nameEl.value = user.displayName || '';
-    const emailEl = document.getElementById('email');
-    if (emailEl && !emailEl.value) emailEl.value = user.email || '';
-    if (avatarPreview) avatarPreview.src = p.avatar || fallbackAvatarUrl;
-  }
-
-  function showForm() {
-    pendingAvatarFile = null;
-    fillForm(profile);
-    if (viewSection) viewSection.hidden = true;
-    if (formSection) formSection.hidden = false;
-  }
-
-  function showView(p) {
-    const v = cfg.toView(p);
-    document.getElementById('viewAvatar').src = p.avatar || fallbackAvatarUrl;
-    document.getElementById('viewName').textContent = v.name || user.displayName || 'Talent Flow User';
-    document.getElementById('viewTitle').textContent = v.title;
-    document.getElementById('viewBio').textContent = v.bio;
-    document.getElementById('viewExperience').textContent = v.metaValue;
-    document.getElementById('viewEmail').textContent = p.email || user.email || '';
-    renderTags(document.getElementById('viewExpertise'), v.tags, cfg.tagClass);
-    document.getElementById('viewEducation').textContent = v.educationText;
-    renderLinks(document.getElementById('viewLinks'), v.links, cfg.linkClass);
-
-    if (formSection) formSection.hidden = true;
-    if (viewSection) viewSection.hidden = false;
-  }
-
-  // Reflect whatever we already know onto this page's own topbar right
-  // away, and refresh the local bridge from Firestore so every other
-  // same-device page (settings, courses, the mobile sidebar) picks up
-  // any change — even one made on a completely different device.
-  if (topbarAvatar && profile.avatar) topbarAvatar.src = profile.avatar;
-  if (cfg.storageKey && profile.profileCompleted) {
-    writeProfileBridge(cfg.storageKey, {
-      fullName: profile.fullName || '',
-      email: profile.email || user.email || '',
-      bio: profile.bio || '',
-      avatar: profile.avatar || '',
-      role: cfg.roleLabel || '',
-      profileCompleted: true,
-    });
-  }
-
-  if (profile.profileCompleted) showView(profile);
-  else showForm();
-
-  editBtn?.addEventListener('click', showForm);
-
-  // Local preview only — the real upload happens on save.
-  avatarInput?.addEventListener('change', () => {
-    const file = avatarInput.files && avatarInput.files[0];
-    if (!file) return;
-    pendingAvatarFile = file;
-    const reader = new FileReader();
-    reader.onload = () => { if (avatarPreview) avatarPreview.src = reader.result; };
-    reader.readAsDataURL(file);
-  });
-
-  form?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const isFirstCompletion = !profile.profileCompleted;
-    const data = { profileCompleted: true };
-    cfg.fields.forEach((id) => {
-      const el = document.getElementById(id);
-      if (el) data[id] = el.value.trim();
-    });
-
-    const originalLabel = submitBtn ? submitBtn.textContent : '';
-
-    if (pendingAvatarFile) {
-      const fileToUpload = pendingAvatarFile;
-      pendingAvatarFile = null;
-      if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Uploading photo…'; }
-      try {
-        data.avatar = await auth.uploadAvatar(user.uid, fileToUpload);
-      } catch (err) {
-        console.error('Avatar upload failed — keeping the previous photo:', err);
-        if (profile.avatar) data.avatar = profile.avatar;
-      }
-      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = originalLabel; }
-    } else if (profile.avatar) {
-      data.avatar = profile.avatar;
+    const auth = await waitForTalentFlowAuth();
+    if (!auth) {
+      setStage('error', "Couldn't reach Talent Flow's sign-in service. Check your connection and try again.");
+      return;
     }
 
-    Object.assign(profile, data);
+    let user;
+    try {
+      user = await auth.requireAuth(); // may redirect to login.html
+    } catch (err) {
+      console.error('Could not verify sign-in:', err);
+      setStage('error', 'Could not verify your sign-in. Please try again.');
+      return;
+    }
+    if (!user) return; // requireAuth is navigating away
 
-    // Firestore keeps the full profile now, avatar URL included — it's a
-    // short string, not the image itself, so there's no size concern.
-    // Saved in the background so a slow connection never strands someone
-    // on their own filled-out form.
-    auth.saveProfile(user.uid, data).catch((err) => {
-      console.error('Firestore profile save failed (continuing anyway):', err);
-    });
+    let profile = {};
+    try {
+      profile = (await auth.loadProfile(user.uid)) || {};
+    } catch (err) {
+      console.error('Profile read failed — showing the blank form instead:', err);
+    }
 
-    if (cfg.storageKey) {
-      writeProfileBridge(cfg.storageKey, {
-        ...data,
-        email: profile.email || user.email || '',
-        role: cfg.roleLabel || '',
+    const form          = document.getElementById('profileForm');
+    const avatarPreview = document.getElementById('avatarPreview');
+    const avatarInput   = document.getElementById('avatarInput');
+    const logoutBtn     = document.getElementById('logoutBtn');
+    const editBtn       = document.getElementById('editProfileBtn');
+    const topbarAvatar  = document.getElementById('nav-avatar-img');
+    const submitBtn     = form ? form.querySelector('button[type="submit"]') : null;
+
+    const fallbackAvatarUrl = user.photoURL || auth.initialsAvatar(profile.fullName || user.displayName || user.email);
+    let pendingAvatarFile = null;
+
+    function fillForm(p) {
+      cfg.fields.forEach((id) => {
+        const el = document.getElementById(id);
+        if (el && p[id] !== undefined) el.value = p[id];
       });
+      const nameEl = document.getElementById('fullName');
+      if (nameEl && !nameEl.value) nameEl.value = user.displayName || '';
+      const emailEl = document.getElementById('email');
+      if (emailEl && !emailEl.value) emailEl.value = user.email || '';
+      if (avatarPreview) avatarPreview.src = p.avatar || fallbackAvatarUrl;
+    }
+
+    function showForm() {
+      setStage('ready');
+      pendingAvatarFile = null;
+      fillForm(profile);
+      if (viewSection) viewSection.hidden = true;
+      if (formSection) formSection.hidden = false;
+    }
+
+    function showView(p) {
+      setStage('ready');
+      const v = cfg.toView(p);
+      document.getElementById('viewAvatar').src = p.avatar || fallbackAvatarUrl;
+      document.getElementById('viewName').textContent = v.name || user.displayName || 'Talent Flow User';
+      document.getElementById('viewTitle').textContent = v.title;
+      document.getElementById('viewBio').textContent = v.bio;
+      document.getElementById('viewExperience').textContent = v.metaValue;
+      document.getElementById('viewEmail').textContent = p.email || user.email || '';
+      renderTags(document.getElementById('viewExpertise'), v.tags, cfg.tagClass);
+      document.getElementById('viewEducation').textContent = v.educationText;
+      renderLinks(document.getElementById('viewLinks'), v.links, cfg.linkClass);
+
+      if (formSection) formSection.hidden = true;
+      if (viewSection) viewSection.hidden = false;
     }
 
     if (topbarAvatar && profile.avatar) topbarAvatar.src = profile.avatar;
-
-    if (isFirstCompletion) {
-      // Just finished onboarding — move straight on instead of making
-      // them look at their own profile and click again.
-      window.location.href = cfg.coursesUrl;
-    } else {
-      // Editing an already-complete profile — show what changed and
-      // let them continue on their own terms.
-      showView(profile);
+    if (cfg.storageKey && profile.profileCompleted) {
+      writeProfileBridge(cfg.storageKey, {
+        fullName: profile.fullName || '',
+        email: profile.email || user.email || '',
+        bio: profile.bio || '',
+        avatar: profile.avatar || '',
+        role: cfg.roleLabel || '',
+        profileCompleted: true,
+      });
     }
-  });
 
-  logoutBtn?.addEventListener('click', () => auth.logOut());
+    if (profile.profileCompleted) showView(profile);
+    else showForm();
+
+    editBtn?.addEventListener('click', showForm);
+
+    avatarInput?.addEventListener('change', () => {
+      const file = avatarInput.files && avatarInput.files[0];
+      if (!file) return;
+      pendingAvatarFile = file;
+      const reader = new FileReader();
+      reader.onload = () => { if (avatarPreview) avatarPreview.src = reader.result; };
+      reader.readAsDataURL(file);
+    });
+
+    form?.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const isFirstCompletion = !profile.profileCompleted;
+      const data = { profileCompleted: true };
+      cfg.fields.forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) data[id] = el.value.trim();
+      });
+
+      const originalLabel = submitBtn ? submitBtn.textContent : '';
+
+      if (pendingAvatarFile) {
+        const fileToUpload = pendingAvatarFile;
+        pendingAvatarFile = null;
+        if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Uploading photo…'; }
+        try {
+          data.avatar = await auth.uploadAvatar(user.uid, fileToUpload);
+        } catch (err) {
+          console.error('Avatar upload failed — keeping the previous photo:', err);
+          if (profile.avatar) data.avatar = profile.avatar;
+        }
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = originalLabel; }
+      } else if (profile.avatar) {
+        data.avatar = profile.avatar;
+      }
+
+      Object.assign(profile, data);
+
+      try {
+        await auth.saveProfile(user.uid, data);
+      } catch (err) {
+        console.error('Profile save failed:', err);
+        if (submitBtn) submitBtn.textContent = originalLabel;
+        alert(auth.friendlyError ? auth.friendlyError(err) : "Couldn't save your profile — please try again.");
+        return;
+      }
+
+      if (cfg.storageKey) {
+        writeProfileBridge(cfg.storageKey, {
+          ...data,
+          email: profile.email || user.email || '',
+          role: cfg.roleLabel || '',
+        });
+      }
+
+      if (topbarAvatar && profile.avatar) topbarAvatar.src = profile.avatar;
+
+      if (isFirstCompletion) {
+        window.location.href = cfg.coursesUrl;
+      } else {
+        showView(profile);
+      }
+    });
+
+    logoutBtn?.addEventListener('click', () => auth.logOut());
+  }
+
+  retryBtn?.addEventListener('click', boot);
+  boot();
 });
