@@ -1,79 +1,38 @@
 /* ══════════════════════════════════════════
    student-assignment.js
    Talent Flow – Student Assignment Page
+   ------------------------------------------------------------
+   Assignments now come from Supabase (via TalentFlowData), matched
+   to this student by their enrolled courses. Submitting saves a
+   link + note into the same `submissions` array the instructor's
+   grading screen already reads from — there's no file-upload
+   storage wired up anywhere in the backend yet, so a link (Drive,
+   GitHub, Figma, etc.) is the real, working way to hand in work
+   today, same as what instructors already see and grade.
 ══════════════════════════════════════════ */
 
-/* ── Mock assignment data ── */
-const ASSIGNMENTS = [
-    {
-        id: 1,
-        title: 'HTML & CSS Portfolio Page',
-        course: 'Web Development',
-        dueDate: '2026-06-04',
-        status: 'pending',
-        grade: null,
-        feedback: null,
-        submittedAt: null,
-        gradedAt: null,
-    },
-    {
-        id: 2,
-        title: 'JavaScript DOM Manipulation',
-        course: 'Web Development',
-        dueDate: '2026-06-01',   // today = late
-        status: 'late',
-        grade: null,
-        feedback: null,
-        submittedAt: null,
-        gradedAt: null,
-    },
-    {
-        id: 3,
-        title: 'Data Wrangling with Pandas',
-        course: 'Data Science',
-        dueDate: '2026-05-28',
-        status: 'submitted',
-        grade: null,
-        feedback: null,
-        submittedAt: '2026-05-27T14:32:00',
-        gradedAt: null,
-    },
-    {
-        id: 4,
-        title: 'Network Security Audit Report',
-        course: 'Cyber Security',
-        dueDate: '2026-05-20',
-        status: 'graded',
-        grade: 88,
-        feedback: 'Excellent analysis of the vulnerability landscape. Your mitigation strategies were well-researched. Next time, include a section on post-incident recovery procedures.',
-        submittedAt: '2026-05-18T09:15:00',
-        gradedAt: '2026-05-22T16:40:00',
-    },
-    {
-        id: 5,
-        title: 'Cloud Deployment Pipeline',
-        course: 'Cloud Computing',
-        dueDate: '2026-06-10',
-        status: 'pending',
-        grade: null,
-        feedback: null,
-        submittedAt: null,
-        gradedAt: null,
-    },
-    {
-        id: 6,
-        title: 'Machine Learning Model Evaluation',
-        course: 'Data Science',
-        dueDate: '2026-05-15',
-        status: 'graded',
-        grade: 74,
-        feedback: 'Good attempt on the confusion matrix. However, the precision/recall trade-off section needed more depth. Your visualisations were clear and informative.',
-        submittedAt: '2026-05-14T20:05:00',
-        gradedAt: '2026-05-16T11:20:00',
-    },
-];
+// auth.js is an ES module fetching an external dependency, so there's
+// no hard guarantee window.TalentFlowAuth exists the instant this
+// script runs.
+function waitForTalentFlowAuth(timeoutMs = 8000) {
+    if (window.TalentFlowAuth) return Promise.resolve(window.TalentFlowAuth);
+    return new Promise((resolve) => {
+        const start = Date.now();
+        const timer = setInterval(() => {
+            if (window.TalentFlowAuth) {
+                clearInterval(timer);
+                resolve(window.TalentFlowAuth);
+            } else if (Date.now() - start > timeoutMs) {
+                clearInterval(timer);
+                resolve(null);
+            }
+        }, 50);
+    });
+}
 
-/* ── Notification store ── */
+/* ── STATE ── */
+let ASSIGNMENTS = [];
+let currentStudentId = null;
 let notifications = [];
 let activeFilter  = 'all';
 let activeSearch  = '';
@@ -112,6 +71,36 @@ function dueUrgency(days) {
     return 'normal';
 }
 
+// Maps a raw TalentFlowData assignment (+ this student's submission,
+// if any) into the shape the rest of this file already expects.
+function toUiAssignment(a) {
+    const sub = a.submission;
+    const max = a.maxScore || 100;
+    let status;
+    if (sub && sub.score !== null && sub.score !== undefined) status = 'graded';
+    else if (sub && sub.submittedAt) status = 'submitted';
+    else if (a.dueDate && daysUntil(a.dueDate) < 0) status = 'late';
+    else status = 'pending';
+
+    return {
+        id: a.id,
+        title: a.title,
+        course: a.course,
+        dueDate: a.dueDate,
+        status,
+        grade: (sub && sub.score !== null && sub.score !== undefined) ? Math.round((sub.score / max) * 100) : null,
+        feedback: sub?.feedback || null,
+        submittedAt: sub?.submittedAt || null,
+        gradedAt: sub?.gradedAt || null,
+        maxScore: max,
+    };
+}
+
+async function loadAssignments() {
+    const raw = await TalentFlowData.getAssignmentsForStudent(currentStudentId);
+    ASSIGNMENTS = raw.map(toUiAssignment);
+}
+
 /* ── Render assignment cards ── */
 
 function renderCards() {
@@ -129,6 +118,9 @@ function renderCards() {
 
     if (filtered.length === 0) {
         empty.style.display = 'flex';
+        empty.querySelector('p').textContent = ASSIGNMENTS.length
+            ? 'No assignments found'
+            : "Nothing here yet — assignments from your enrolled courses will show up here.";
         return;
     }
     empty.style.display = 'none';
@@ -138,7 +130,6 @@ function renderCards() {
         grid.appendChild(card);
     });
 
-    // Animate grade bars after paint
     requestAnimationFrame(() => {
         document.querySelectorAll('.grade-bar-fill[data-pct]').forEach(el => {
             el.style.width = el.dataset.pct + '%';
@@ -154,7 +145,6 @@ function buildCard(a, idx) {
     card.className = `asgn-card status-${a.status}`;
     card.style.animationDelay = `${idx * 55}ms`;
 
-    // ── Top row
     const statusLabels = { pending: 'Pending', submitted: 'Submitted', graded: 'Graded', late: 'Late' };
 
     let topHTML = `
@@ -163,7 +153,6 @@ function buildCard(a, idx) {
             <span class="status-badge ${a.status}">${statusLabels[a.status]}</span>
         </div>`;
 
-    // ── Meta
     let dueText = '';
     if (a.status === 'pending' || a.status === 'late') {
         if (days < 0) dueText = `${Math.abs(days)}d overdue`;
@@ -192,7 +181,6 @@ function buildCard(a, idx) {
             </div>
         </div>`;
 
-    // ── Grade / submitted strip
     if (a.status === 'graded') {
         topHTML += `
             <div class="card-grade">
@@ -210,11 +198,10 @@ function buildCard(a, idx) {
                 <svg fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
                 </svg>
-                Submitted ${formatDateTime(a.submittedAt)}
+                Submitted ${formatDateTime(a.submittedAt)} · awaiting grading
             </div>`;
     }
 
-    // ── Footer buttons
     let footerHTML = '<div class="card-footer">';
 
     if (a.status === 'pending' || a.status === 'late') {
@@ -242,7 +229,6 @@ function buildCard(a, idx) {
 
     card.innerHTML = topHTML + footerHTML;
 
-    // Attach events
     const submitBtn     = card.querySelector('.btn-submit');
     const resubmitBtn   = card.querySelector('.btn-resubmit');
     const viewGradeBtn  = card.querySelector('.btn-view-grade');
@@ -275,8 +261,7 @@ function openSubmitModal(id) {
     else if (days === 0) dueText += ' — Due today';
     document.getElementById('submitModalDue').textContent = dueText;
 
-    // Reset file UI
-    clearFileUI();
+    document.getElementById('submitLink').value = '';
     document.getElementById('submitNote').value = '';
 
     document.getElementById('submitModal').classList.add('open');
@@ -287,80 +272,39 @@ function closeSubmitModal() {
     currentSubmitId = null;
 }
 
-/* ── File handling ── */
-let selectedFile = null;
-
-function clearFileUI() {
-    selectedFile = null;
-    document.getElementById('fileInput').value = '';
-    document.getElementById('filePreview').style.display = 'none';
-    document.getElementById('uploadZone').style.display  = 'block';
-}
-
-function handleFileSelect(file) {
-    if (!file) return;
-    const MAX = 20 * 1024 * 1024;
-    if (file.size > MAX) { showToast('File exceeds 20 MB limit', 'error'); return; }
-
-    selectedFile = file;
-    document.getElementById('filePreviewName').textContent = file.name;
-    document.getElementById('filePreviewSize').textContent = `${(file.size / 1024).toFixed(1)} KB`;
-    document.getElementById('filePreview').style.display = 'flex';
-    document.getElementById('uploadZone').style.display  = 'none';
-}
-
 /* ── Confirm submission ── */
-function handleSubmit() {
-    if (!selectedFile) { showToast('Please attach a file first', 'warning'); return; }
+async function handleSubmit() {
+    const link = document.getElementById('submitLink').value.trim();
+    const note = document.getElementById('submitNote').value.trim();
+
+    if (!link && !note) { showToast('Add a link or a note before submitting', 'warning'); return; }
+
     const a = ASSIGNMENTS.find(a => a.id === currentSubmitId);
     if (!a) return;
 
-    // Optimistic update
-    a.status      = 'submitted';
-    a.submittedAt = new Date().toISOString();
+    const confirmBtn = document.getElementById('confirmSubmit');
+    confirmBtn.disabled = true;
 
-    closeSubmitModal();
-    updateChips();
-    renderCards();
+    try {
+        await TalentFlowData.submitStudentAssignment(a.id, currentStudentId, { text: note, link });
+        await loadAssignments();
+        closeSubmitModal();
+        updateChips();
+        renderCards();
+        showToast(`"${a.title}" submitted successfully!`, 'success');
 
-    showToast(`"${a.title}" submitted successfully!`, 'success');
-
-    // Simulate instructor grading after 8 seconds (demo purposes)
-    setTimeout(() => {
-        simulateGrading(a.id);
-    }, 8000);
-}
-
-/* ── Simulate instructor grading ── */
-function simulateGrading(id) {
-    const a = ASSIGNMENTS.find(a => a.id === id);
-    if (!a || a.status !== 'submitted') return;
-
-    const score = Math.floor(Math.random() * 31) + 70; // 70–100
-    const feedbacks = [
-        'Well-structured submission with clear explanations. Your approach to problem-solving is commendable. Keep up the great work!',
-        'Good effort overall. The core concepts are well-understood. Work on edge-case handling and documentation for an even stronger result.',
-        'Solid foundation shown here. Your analysis was thorough. Consider exploring alternative approaches in future submissions.',
-        'Impressive work! Demonstrates strong command of the subject matter. The practical examples you included were particularly effective.',
-    ];
-
-    a.grade     = score;
-    a.status    = 'graded';
-    a.gradedAt  = new Date().toISOString();
-    a.feedback  = feedbacks[Math.floor(Math.random() * feedbacks.length)];
-
-    // Push notification
-    addNotification({
-        type: 'grade',
-        title: 'Assignment Graded',
-        text: `"${a.title}" has been marked: ${score}/100 — ${gradeLabel(score)}`,
-        time: 'Just now',
-    });
-
-    updateChips();
-    renderCards();
-
-    showToast(`Your assignment has been graded: ${score}/100`, 'success');
+        addNotification({
+            type: 'submit',
+            title: 'Assignment Submitted',
+            text: `"${a.title}" is now waiting on your instructor to grade it.`,
+            time: 'Just now',
+        });
+    } catch (err) {
+        console.error('Submitting assignment failed:', err);
+        showToast('Could not submit — please try again', 'error');
+    } finally {
+        confirmBtn.disabled = false;
+    }
 }
 
 /* ── Grade modal ── */
@@ -372,10 +316,9 @@ function openGradeModal(id) {
     document.getElementById('gradeModalCourse').textContent  = a.course;
     document.getElementById('gradeScore').textContent        = a.grade;
     document.getElementById('gradeLabel').textContent        = gradeLabel(a.grade);
-    document.getElementById('gradeDate').textContent         = `Graded ${formatDateTime(a.gradedAt)}`;
+    document.getElementById('gradeDate').textContent         = a.gradedAt ? `Graded ${formatDateTime(a.gradedAt)}` : '';
     document.getElementById('feedbackText').textContent      = a.feedback || 'No feedback provided.';
 
-    // Colour the circle by score
     const circle = document.getElementById('gradeCircle');
     if (a.grade >= 75)       circle.style.boxShadow = '0 0 0 4px #BBF7D0';
     else if (a.grade >= 60)  circle.style.boxShadow = '0 0 0 4px #FEF08A';
@@ -465,7 +408,6 @@ function setupNavPopups() {
         e.stopPropagation();
         notifPanel.classList.toggle('open');
         profilePopup.classList.remove('open');
-        // Mark all read when panel opens
         notifications.forEach(n => { n.unread = false; });
         renderNotifications();
     });
@@ -482,88 +424,62 @@ function setupNavPopups() {
 }
 
 /* ── DOMContentLoaded ── */
-document.addEventListener('DOMContentLoaded', () => {
-
-    // Seed one existing "graded" notification for the graded item already in the data
-    addNotification({
-        type: 'grade',
-        title: 'Assignment Graded',
-        text: '"Network Security Audit Report" has been marked: 88/100 — Distinction',
-        time: '3 days ago',
-    });
-    addNotification({
-        type: 'grade',
-        title: 'Assignment Graded',
-        text: '"Machine Learning Model Evaluation" has been marked: 74/100 — Merit',
-        time: '5 days ago',
-    });
-
-    updateChips();
-    renderCards();
+document.addEventListener('DOMContentLoaded', async () => {
     setupNavPopups();
 
-    /* Filter tabs */
     document.getElementById('filterTabs').addEventListener('click', e => {
         const pill = e.target.closest('.tab-pill');
         if (pill) setFilter(pill.dataset.filter);
     });
 
-    /* Search */
     document.getElementById('searchInput').addEventListener('input', e => {
         activeSearch = e.target.value;
         renderCards();
     });
 
-    /* Submit modal — open/close */
     document.getElementById('submitModalClose').addEventListener('click', closeSubmitModal);
     document.getElementById('submitModal').addEventListener('click', e => {
         if (e.target === document.getElementById('submitModal')) closeSubmitModal();
     });
 
-    /* Grade modal — open/close */
     document.getElementById('gradeModalClose').addEventListener('click', closeGradeModal);
     document.getElementById('closeGradeBtn').addEventListener('click', closeGradeModal);
     document.getElementById('gradeModal').addEventListener('click', e => {
         if (e.target === document.getElementById('gradeModal')) closeGradeModal();
     });
 
-    /* Confirm submit */
     document.getElementById('confirmSubmit').addEventListener('click', handleSubmit);
 
-    /* File input */
-    const fileInput  = document.getElementById('fileInput');
-    const uploadZone = document.getElementById('uploadZone');
-    const browseLink = document.getElementById('browseLink');
-    const fpRemove   = document.getElementById('fpRemove');
-
-    browseLink.addEventListener('click', () => fileInput.click());
-    uploadZone.addEventListener('click', e => {
-        if (e.target !== browseLink) fileInput.click();
-    });
-
-    fileInput.addEventListener('change', () => {
-        if (fileInput.files[0]) handleFileSelect(fileInput.files[0]);
-    });
-
-    fpRemove.addEventListener('click', clearFileUI);
-
-    /* Drag & drop */
-    uploadZone.addEventListener('dragover', e => {
-        e.preventDefault();
-        uploadZone.classList.add('drag-over');
-    });
-    uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
-    uploadZone.addEventListener('drop', e => {
-        e.preventDefault();
-        uploadZone.classList.remove('drag-over');
-        if (e.dataTransfer.files[0]) handleFileSelect(e.dataTransfer.files[0]);
-    });
-
-    /* Keyboard close */
     document.addEventListener('keydown', e => {
         if (e.key === 'Escape') {
             closeSubmitModal();
             closeGradeModal();
         }
     });
+
+    const auth = await waitForTalentFlowAuth();
+    if (!auth) {
+        showToast("Couldn't connect — please refresh the page.", 'error');
+        return;
+    }
+
+    let user;
+    try {
+        user = await auth.requireAuth(); // redirects to login.html if signed out
+    } catch (err) {
+        console.error('Auth check failed:', err);
+        return;
+    }
+    if (!user) return;
+    currentStudentId = user.uid;
+
+    try {
+        await loadAssignments();
+    } catch (err) {
+        console.error('Loading assignments failed:', err);
+        showToast('Could not load your assignments — check your connection', 'error');
+    }
+
+    updateChips();
+    renderCards();
 });
