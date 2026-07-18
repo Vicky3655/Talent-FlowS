@@ -8,6 +8,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
     <script type="module" src="auth.js"></script>
+    <script type="module" src="data-store.js"></script>
     <script src="app-nav.js" defer></script>
     <title>Talent Flow – Student Dashboard</title>
 </head>
@@ -51,7 +52,7 @@
                 </div>
             </div>
             <div class="pp-divider"></div>
-            <a href="#" class="pp-item">
+            <a href="student-profile.html" class="pp-item">
                 <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                 Profile
             </a>
@@ -162,7 +163,7 @@
                 </svg>
             </div>
             <div class="qs-data">
-                <p class="qs-label">Hours Learned</p>
+                <p class="qs-label">Assignments Pending</p>
                 <p class="qs-value" data-target="0">0</p>
             </div>
             <canvas class="qs-spark" width="80" height="36" data-points="0,0,0,0,0"></canvas>
@@ -215,48 +216,6 @@
         <!-- RIGHT COLUMN -->
         <div class="col-right">
 
-            <!-- Weekly Progress -->
-            <section class="section-card">
-                <div class="sc-header">
-                    <h3>Weekly Activity</h3>
-                    <span class="badge-pill blue">This week</span>
-                </div>
-                <div class="weekly-chart">
-                    <div class="wc-bars" id="weeklyBars"></div>
-                    <div class="wc-labels">
-                        <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
-                    </div>
-                </div>
-                <div class="wc-summary">
-                    <div class="wcs-item">
-                        <p class="wcs-val" id="totalHrs">0h</p>
-                        <p class="wcs-lbl">Total</p>
-                    </div>
-                    <div class="wcs-sep"></div>
-                    <div class="wcs-item">
-                        <p class="wcs-val" id="avgHrs">0h</p>
-                        <p class="wcs-lbl">Daily Avg</p>
-                    </div>
-                    <div class="wcs-sep"></div>
-                    <div class="wcs-item">
-                        <p class="wcs-val" id="bestDay">—</p>
-                        <p class="wcs-lbl">Best Day</p>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Participation Radar -->
-            <section class="section-card">
-                <div class="sc-header">
-                    <h3>Participation</h3>
-                    <span class="badge-pill green">Active</span>
-                </div>
-                <div class="participation-wrap">
-                    <canvas id="radarCanvas" width="220" height="220"></canvas>
-                    <div class="radar-legend" id="radarLegend"></div>
-                </div>
-            </section>
-
             <!-- Upcoming Deadlines -->
             <section class="section-card">
                 <div class="sc-header">
@@ -276,15 +235,10 @@
         <button class="close-btn" id="closeModal">×</button>
         <h2 id="modalTitle">Submit Assignment</h2>
         <p id="modalCourse" class="modal-course-label"></p>
-        <div class="upload-zone" id="uploadZone">
-            <svg width="36" height="36" fill="none" stroke="#94A3B8" stroke-width="1.5" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5"/>
-            </svg>
-            <p>Drag & drop or <span class="uz-link">browse</span></p>
-            <p class="uz-sub">PDF, DOC, ZIP up to 20MB</p>
-            <input type="file" id="fileInput" style="display:none">
-        </div>
-        <div class="file-preview" id="filePreview" style="display:none"></div>
+
+        <label style="display:block;font-size:13px;font-weight:600;color:#334155;margin-bottom:6px">Link to your work</label>
+        <input type="url" id="submitLink" placeholder="https://…" style="width:100%;padding:10px 14px;border:1px solid #E2E8F0;border-radius:10px;font-size:14px;font-family:inherit;outline:none;margin-bottom:14px">
+
         <textarea id="submitNote" placeholder="Add a note for your instructor (optional)..." rows="3"></textarea>
         <button class="submit-btn" id="confirmSubmit">Submit Assignment</button>
     </div>
