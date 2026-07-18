@@ -3,8 +3,36 @@
    instructor-dashboard.js
 ═══════════════════════════════════════════ */
 
-// ── INITIAL DATA MODEL ─────────────────────
-// ── DATA ──────────────────────────────────
+// auth.js is an ES module fetching an external dependency, so there's
+// no hard guarantee window.TalentFlowAuth exists the instant this
+// script's DOMContentLoaded callback fires. Poll briefly instead of
+// checking once and leaving the whole dashboard stuck on zeros.
+function waitForTalentFlowAuth(timeoutMs = 8000) {
+    if (window.TalentFlowAuth) return Promise.resolve(window.TalentFlowAuth);
+    return new Promise((resolve) => {
+        const start = Date.now();
+        const timer = setInterval(() => {
+            if (window.TalentFlowAuth) {
+                clearInterval(timer);
+                resolve(window.TalentFlowAuth);
+            } else if (Date.now() - start > timeoutMs) {
+                clearInterval(timer);
+                resolve(null);
+            }
+        }, 50);
+    });
+}
+
+function escapeHtml(str) {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+// ── STATE (populated from Supabase once auth resolves — see init()) ──
 const STATS = {
     courses: 0,
     students: 0,
@@ -13,25 +41,31 @@ const STATS = {
     gradedToday: 0
 };
 
-const COURSES = [];
-const GIVEN_ASSIGNMENTS = [];
+let COURSES = [];
+let ASSIGNMENTS = [];
+let STUDENTS = [];
+let GIVEN_ASSIGNMENTS = [];
 
 const SUBMISSIONS = {
     pending: [],
     graded: []
 };
 
-const GRADING_ACTIVITY = [0, 0, 0, 0, 0, 0, 0]; // Fresh grading activity curve
+const GRADING_ACTIVITY = [0, 0, 0, 0, 0, 0, 0];
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const TODAY_IDX = (new Date().getDay() + 6) % 7; 
+const TODAY_IDX = (new Date().getDay() + 6) % 7;
 
+// Relabelled to metrics the schema can actually back — the original
+// "Attendance / Quizzes / Forum Activity" aren't tracked anywhere, so
+// showing numbers for them would just be invented.
 const CLASS_ENGAGEMENT = {
-    labels: ['Attendance', 'Quizzes', 'Forum Activity', 'Submissions', 'Project Grades'],
-    scores: [0, 0, 0, 0, 0], // Fresh engagement ring metric
+    labels: ['On-Time Submissions', 'Grading Progress', 'Avg. Score', 'Published Courses', 'Published Assignments'],
+    scores: [0, 0, 0, 0, 0],
     color: '#2563EB'
 };
 
-const GRADING_SCHEDULE = [];
+let GRADING_SCHEDULE = [];
+let currentInstructorId = null;
 
 // ── NUMERICAL ANIMATION HELPER ─────────────
 function animateNumber(el, target, suffix = '', duration = 800) {
@@ -88,20 +122,150 @@ function drawSparkline(canvasId, points, color = '#2563EB') {
     ctx.stroke();
 }
 
-// ── INITIALIZE APPLICATION ─────────────────
-document.addEventListener('DOMContentLoaded', () => {
-    setGreeting();
+// ── DATA LOADING + DERIVATION ──────────────
+function studentInfo(id) {
+    return STUDENTS.find(s => s.id === id) || { id, name: 'Unknown Student', avatar: '' };
+}
+
+function formatShortDate(iso) {
+    if (!iso) return '';
+    const d = new Date(iso);
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function computeDerivedData() {
+    STATS.courses = COURSES.length;
+    STATS.students = STUDENTS.length;
+
+    let pendingCount = 0, gradedSum = 0, gradedCount = 0, gradedTodayCount = 0;
+    let onTimeCount = 0, submittedTotalCount = 0;
+    const todayStr = new Date().toISOString().split('T')[0];
+    const activityByDow = [0, 0, 0, 0, 0, 0, 0];
+    const pendingList = [];
+    const gradedList = [];
+
+    ASSIGNMENTS.forEach((a) => {
+        const max = a.maxScore || 100;
+        (a.submissions || []).forEach((s) => {
+            if (!s.submittedAt) return;
+            submittedTotalCount++;
+            if (a.dueDate && s.submittedAt.slice(0, 10) <= a.dueDate) onTimeCount++;
+
+            if (s.score === null || s.score === undefined) {
+                pendingCount++;
+                pendingList.push({
+                    id: `${a.id}::${s.studentId}`,
+                    assignmentId: a.id,
+                    studentId: s.studentId,
+                    title: a.title,
+                    course: a.course,
+                    maxScore: max,
+                    studentName: studentInfo(s.studentId).name,
+                    dueLabel: formatShortDate(s.submittedAt),
+                    studentNote: s.submissionText ? s.submissionText.slice(0, 160) : '',
+                });
+            } else {
+                gradedSum += (s.score / max) * 100;
+                gradedCount++;
+                gradedList.push({
+                    id: `${a.id}::${s.studentId}`,
+                    assignmentId: a.id,
+                    studentId: s.studentId,
+                    title: a.title,
+                    course: a.course,
+                    studentName: studentInfo(s.studentId).name,
+                    grade: Math.round((s.score / max) * 100),
+                });
+                if (s.gradedAt) {
+                    const dayStr = s.gradedAt.slice(0, 10);
+                    if (dayStr === todayStr) gradedTodayCount++;
+                    const diffDays = Math.round((new Date(todayStr) - new Date(dayStr)) / 86400000);
+                    if (diffDays >= 0 && diffDays < 7) {
+                        const dow = (new Date(dayStr + 'T12:00:00').getDay() + 6) % 7;
+                        activityByDow[dow]++;
+                    }
+                }
+            }
+        });
+    });
+
+    STATS.pending = pendingCount;
+    STATS.classAverage = gradedCount ? Math.round(gradedSum / gradedCount) : 0;
+    STATS.gradedToday = gradedTodayCount;
+
+    SUBMISSIONS.pending = pendingList;
+    SUBMISSIONS.graded = gradedList;
+    GRADING_ACTIVITY.splice(0, 7, ...activityByDow);
+
+    GIVEN_ASSIGNMENTS = ASSIGNMENTS
+        .slice()
+        .sort((a, b) => new Date(b.dueDate || 0) - new Date(a.dueDate || 0))
+        .slice(0, 8)
+        .map(a => ({
+            id: a.id,
+            title: a.title,
+            course: a.course,
+            status: a.status, // 'draft' | 'published' | 'closed'
+            subCount: (a.submissions || []).filter(s => s.submittedAt).length,
+        }));
+
+    const publishedCourses = COURSES.filter(c => c.status === 'published').length;
+    const publishedAssignments = ASSIGNMENTS.filter(a => a.status !== 'draft').length;
+    CLASS_ENGAGEMENT.scores = [
+        submittedTotalCount ? Math.round((onTimeCount / submittedTotalCount) * 100) : 0,
+        submittedTotalCount ? Math.round((gradedCount / submittedTotalCount) * 100) : 0,
+        STATS.classAverage,
+        COURSES.length ? Math.round((publishedCourses / COURSES.length) * 100) : 0,
+        ASSIGNMENTS.length ? Math.round((publishedAssignments / ASSIGNMENTS.length) * 100) : 0,
+    ];
+
+    GRADING_SCHEDULE = ASSIGNMENTS
+        .filter(a => a.status !== 'draft' && pendingList.some(p => p.assignmentId === a.id) && a.dueDate)
+        .map(a => ({ title: a.title, course: a.course, date: new Date(a.dueDate + 'T12:00:00') }))
+        .sort((a, b) => a.date - b.date)
+        .slice(0, 6);
+}
+
+async function loadData() {
+    const [courses, assignments, students] = await Promise.all([
+        TalentFlowData.getCourses(currentInstructorId),
+        TalentFlowData.getAssignments(currentInstructorId),
+        TalentFlowData.getStudentsForInstructor(currentInstructorId).catch((err) => {
+            console.error('Could not load enrolled students:', err);
+            return [];
+        }),
+    ]);
+    COURSES = courses;
+    ASSIGNMENTS = assignments;
+    STUDENTS = students;
+    computeDerivedData();
+}
+
+function populateCourseSelect() {
+    const sel = document.getElementById('newCourse');
+    if (!sel) return;
+    if (!COURSES.length) {
+        sel.innerHTML = '<option value="">Create a course first</option>';
+        return;
+    }
+    sel.innerHTML = COURSES.map(c => `<option value="${escapeHtml(c.title)}">${escapeHtml(c.title)}</option>`).join('');
+}
+
+async function refreshAndRender() {
+    try {
+        await loadData();
+    } catch (err) {
+        console.error('Loading dashboard data failed:', err);
+        showToast('Could not load your latest data — check your connection.');
+    }
     updateUIElements();
     renderGivenAssignments();
-    renderSubmissions('pending');
-    initTabs();
+    renderSubmissions(activeSubmissionsTab);
     renderGradingChart();
     renderRadar();
     renderSchedule();
-    initModals();
-    initNavbar();
-    initWelcomeDismiss();
-});
+    populateCourseSelect();
+}
 
 // ── GREETINGS ──────────────────────────────
 function setGreeting() {
@@ -113,9 +277,8 @@ function setGreeting() {
         else greetingEl.textContent = 'Good evening,';
     }
 
-    // Real name comes from the shared instructor profile bridge (written
-    // by profile.js the moment the instructor saves their profile) —
-    // blank until then, rather than a hardcoded placeholder name.
+    // Fast local paint from the shared instructor profile bridge —
+    // nav-avatar.js reconciles this against Supabase a moment later.
     const wbNameEl = document.getElementById('wbName');
     if (wbNameEl) {
         try {
@@ -130,25 +293,24 @@ function setGreeting() {
 
 // ── CORE UI UPDATER ────────────────────────
 function updateUIElements() {
-    // Stat elements
     animateNumber(document.getElementById('statCourses'), STATS.courses);
     animateNumber(document.getElementById('statStudents'), STATS.students);
     animateNumber(document.getElementById('statPending'), STATS.pending);
     animateNumber(document.getElementById('statAvgGrade'), STATS.classAverage, '%');
-    
-    // Graded counter inside banner
+
     const streakCounter = document.getElementById('streakCount');
     if (streakCounter) animateNumber(streakCounter, STATS.gradedToday);
-    
-    // Summary line inside banner
+
     const bannerPendingCount = document.getElementById('bannerPendingCount');
     if (bannerPendingCount) bannerPendingCount.textContent = STATS.pending;
 
-    // Draw Quick Stat Sparklines
-    drawSparkline('sparkCourses', [2, 2, 3, 3, 3], '#2563EB');
-    drawSparkline('sparkStudents', [30, 34, 38, 42, 45], '#16A34A');
-    drawSparkline('sparkPending', [12, 10, 15, 8, STATS.pending], '#EA580C');
-    drawSparkline('sparkGrade', [78, 79, 81, 80, STATS.classAverage], '#7C3AED');
+    // No historical time-series is tracked anywhere in the schema yet,
+    // so these mini-sparklines reflect today's real totals rather than
+    // an invented trend line.
+    drawSparkline('sparkCourses', Array(5).fill(STATS.courses || 0.1), '#2563EB');
+    drawSparkline('sparkStudents', Array(5).fill(STATS.students || 0.1), '#16A34A');
+    drawSparkline('sparkPending', Array(5).fill(STATS.pending || 0.1), '#EA580C');
+    drawSparkline('sparkGrade', Array(5).fill(STATS.classAverage || 0.1), '#7C3AED');
 }
 
 // ── RENDER GIVEN ASSIGNMENTS ───────────────
@@ -164,15 +326,16 @@ function renderGivenAssignments() {
         return;
     }
 
+    const statusLabel = { draft: 'Draft', published: 'Published', closed: 'Closed' };
     list.innerHTML = GIVEN_ASSIGNMENTS.map((a, i) => `
         <div class="assign-item" style="animation-delay:${i * 60}ms; align-items: center;">
-            <div class="ai-status-dot ${a.status === 'Active' ? 'submitted' : 'pending'}"></div>
+            <div class="ai-status-dot ${a.status === 'draft' ? 'pending' : 'submitted'}"></div>
             <div class="ai-body" style="margin-right: 12px;">
-                <p class="ai-title" style="margin-bottom: 2px;">${a.title}</p>
-                <p class="ai-course">${a.course}</p>
+                <p class="ai-title" style="margin-bottom: 2px;">${escapeHtml(a.title)}</p>
+                <p class="ai-course">${escapeHtml(a.course)}</p>
             </div>
-            <span class="badge-pill ${a.status === 'Active' ? 'green' : 'blue'}" style="margin-left: auto; flex-shrink: 0;">
-                ${a.status === 'Active' ? a.subCount + ' Done' : 'Draft'}
+            <span class="badge-pill ${a.status === 'draft' ? 'blue' : 'green'}" style="margin-left: auto; flex-shrink: 0;">
+                ${a.status === 'draft' ? 'Draft' : `${a.subCount} submitted`}
             </span>
         </div>
     `).join('');
@@ -199,20 +362,20 @@ function renderSubmissions(tab) {
 
     list.innerHTML = items.map((s, i) => {
         const actionButton = tab === 'pending'
-            ? `<button class="ai-action-btn" onclick="openGradeModal(${s.id})">Grade</button>`
+            ? `<button class="ai-action-btn" onclick="openGradeModal('${s.id}')">Grade</button>`
             : '';
-        const gradeBadge = s.grade ? `<span class="ai-grade">${s.grade}%</span>` : '';
+        const gradeBadge = (s.grade !== undefined && s.grade !== null) ? `<span class="ai-grade">${s.grade}%</span>` : '';
         const subtitle = tab === 'pending'
-            ? `${s.studentName} · Submitted ${s.dueLabel}`
-            : `${s.studentName} · Graded`;
+            ? `${escapeHtml(s.studentName)} · Submitted ${s.dueLabel}`
+            : `${escapeHtml(s.studentName)} · Graded`;
 
         return `
             <div class="assign-item" style="animation-delay:${i * 50}ms">
                 <div class="ai-status-dot ${tab === 'pending' ? 'pending' : 'graded'}"></div>
                 <div class="ai-body">
-                    <p class="ai-title">${s.title}</p>
+                    <p class="ai-title">${escapeHtml(s.title)}</p>
                     <p class="ai-course">${subtitle}</p>
-                    ${s.studentNote ? `<p style="font-size:11px; color:var(--slate-5); background:var(--slate-0); padding:4px 8px; border-radius:6px; margin-top:6px; font-style:italic;">"${s.studentNote}"</p>` : ''}
+                    ${s.studentNote ? `<p style="font-size:11px; color:var(--slate-5); background:var(--slate-0); padding:4px 8px; border-radius:6px; margin-top:6px; font-style:italic;">"${escapeHtml(s.studentNote)}"</p>` : ''}
                 </div>
                 <div style="margin-left:auto; display:flex; align-items:center; gap:12px; flex-shrink:0;">
                     ${gradeBadge}
@@ -293,7 +456,6 @@ function renderRadar() {
         const ease = 1 - Math.pow(1 - t, 3);
         ctx.clearRect(0, 0, W, H);
 
-        // Grid rings
         [0.25, 0.5, 0.75, 1].forEach(frac => {
             ctx.beginPath();
             for (let i = 0; i < n; i++) {
@@ -306,7 +468,6 @@ function renderRadar() {
             ctx.stroke();
         });
 
-        // Spokes
         for (let i = 0; i < n; i++) {
             const [x, y] = pt(i, R);
             ctx.beginPath();
@@ -317,7 +478,6 @@ function renderRadar() {
             ctx.stroke();
         }
 
-        // Polygon
         ctx.beginPath();
         for (let i = 0; i < n; i++) {
             const [x, y] = pt(i, R * scores[i] * ease);
@@ -330,7 +490,6 @@ function renderRadar() {
         ctx.lineWidth = 2;
         ctx.stroke();
 
-        // Dots
         for (let i = 0; i < n; i++) {
             const [x, y] = pt(i, R * scores[i] * ease);
             ctx.beginPath();
@@ -339,7 +498,6 @@ function renderRadar() {
             ctx.fill();
         }
 
-        // Labels
         for (let i = 0; i < n; i++) {
             const [x, y] = pt(i, R + 15);
             ctx.font = '600 11px Plus Jakarta Sans, sans-serif';
@@ -353,7 +511,6 @@ function renderRadar() {
     }
     drawFrame();
 
-    // Legend Mapping
     const legend = document.getElementById('radarLegend');
     if (legend) {
         const colors = ['#2563EB', '#16A34A', '#EA580C', '#7C3AED', '#0891B2'];
@@ -374,13 +531,18 @@ function renderSchedule() {
 
     if (badge) badge.textContent = GRADING_SCHEDULE.length;
 
+    if (!GRADING_SCHEDULE.length) {
+        list.innerHTML = `<p style="text-align:center;color:var(--slate-4);padding:20px;font-size:13px">Nothing waiting on grading right now.</p>`;
+        return;
+    }
+
     const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     const now = new Date();
 
     list.innerHTML = GRADING_SCHEDULE.map((s, i) => {
         const daysLeft = Math.ceil((s.date - now) / 86400000);
         const urgency = daysLeft <= 2 ? 'urgent' : 'normal';
-        const label = daysLeft === 1 ? 'Tomorrow' : `${daysLeft}d deadline`;
+        const label = daysLeft === 1 ? 'Tomorrow' : daysLeft <= 0 ? 'Overdue' : `${daysLeft}d deadline`;
 
         return `
             <div class="dl-item" style="animation-delay:${i * 60}ms">
@@ -389,8 +551,8 @@ function renderSchedule() {
                     <span class="dl-month">${MONTHS[s.date.getMonth()]}</span>
                 </div>
                 <div class="dl-info">
-                    <p class="dl-title">${s.title}</p>
-                    <p class="dl-course">${s.course}</p>
+                    <p class="dl-title">${escapeHtml(s.title)}</p>
+                    <p class="dl-course">${escapeHtml(s.course)}</p>
                 </div>
                 <span class="dl-days-left ${urgency}">${label}</span>
             </div>`;
@@ -406,18 +568,16 @@ function openGradeModal(id) {
 
     targetGradingId = id;
     document.getElementById('gradeModalDetail').textContent = `${submission.studentName} · ${submission.course}`;
-    
-    // File Preview Mapping
-    const filePreview = document.getElementById('studentFilePreview');
-    filePreview.innerHTML = `
-        <svg width="18" height="18" fill="none" stroke="#2563EB" stroke-width="1.8" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/>
-        </svg>
-        <span>${submission.file}</span>
-        <span style="color:#94A3B8; font-size:11px; margin-left:auto">${submission.fileSize}</span>
-    `;
 
-    document.getElementById('gradeValue').value = '';
+    const filePreview = document.getElementById('studentFilePreview');
+    filePreview.innerHTML = submission.studentNote
+        ? `<span style="font-size:13px;color:var(--slate-7);line-height:1.5">${escapeHtml(submission.studentNote)}</span>`
+        : `<span style="font-size:13px;color:var(--slate-4);font-style:italic">No written note from the student.</span>`;
+
+    const scoreInput = document.getElementById('gradeValue');
+    scoreInput.max = submission.maxScore;
+    scoreInput.placeholder = `Enter grade (out of ${submission.maxScore})`;
+    scoreInput.value = '';
     document.getElementById('gradeFeedback').value = '';
     document.getElementById('gradeModal').classList.add('open');
 }
@@ -435,93 +595,111 @@ function initModals() {
     const closeCreate = document.getElementById('closeCreateModal');
     const confirmCreate = document.getElementById('confirmCreateAssignment');
 
-    // Close on overlay click
     [gradeModal, addAssignmentModal].forEach(modal => {
         modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('open'); });
     });
 
     closeGrade.addEventListener('click', () => gradeModal.classList.remove('open'));
-    
-    // Process grading
-    confirmGrade.addEventListener('click', () => {
+
+    confirmGrade.addEventListener('click', async () => {
+        const submission = SUBMISSIONS.pending.find(s => s.id === targetGradingId);
+        if (!submission) return;
+
         const scoreInput = document.getElementById('gradeValue');
         const score = parseInt(scoreInput.value);
 
-        if (isNaN(score) || score < 0 || score > 100) {
-            showToast('Please enter a valid grade between 0 and 100.');
+        if (isNaN(score) || score < 0 || score > submission.maxScore) {
+            showToast(`Please enter a valid grade between 0 and ${submission.maxScore}.`);
             return;
         }
 
-        const idx = SUBMISSIONS.pending.findIndex(s => s.id === targetGradingId);
-        if (idx !== -1) {
-            const [item] = SUBMISSIONS.pending.splice(idx, 1);
-            item.grade = score;
-            item.feedback = document.getElementById('gradeFeedback').value;
-            SUBMISSIONS.graded.unshift(item);
+        const assignment = ASSIGNMENTS.find(a => a.id === submission.assignmentId);
+        if (!assignment) return;
 
-            // Dynamically recalculate statistics
-            STATS.gradedToday++;
-            STATS.pending = SUBMISSIONS.pending.length;
-            
-            // Recompute running average from graded entries
-            const sum = SUBMISSIONS.graded.reduce((acc, curr) => acc + curr.grade, 0);
-            STATS.classAverage = Math.round(sum / SUBMISSIONS.graded.length);
+        const feedback = document.getElementById('gradeFeedback').value;
+        const updatedSubmissions = assignment.submissions.map(s => s.studentId === submission.studentId
+            ? { ...s, score, feedback, gradedAt: new Date().toISOString() }
+            : s);
 
-            // Update Weekday Log
-            GRADING_ACTIVITY[TODAY_IDX]++;
-            renderGradingChart();
-
+        confirmGrade.disabled = true;
+        try {
+            await TalentFlowData.updateSubmissions(assignment.id, updatedSubmissions);
+            assignment.submissions = updatedSubmissions;
+            computeDerivedData();
             updateUIElements();
+            renderGivenAssignments();
             renderSubmissions(activeSubmissionsTab);
-            showToast(`Submission graded successfully! Score: ${score}% ✅`);
+            renderGradingChart();
+            renderRadar();
+            renderSchedule();
+            showToast(`Submission graded successfully! Score: ${score}/${submission.maxScore} ✅`);
+            gradeModal.classList.remove('open');
+            targetGradingId = null;
+        } catch (err) {
+            console.error('Saving grade failed:', err);
+            showToast('Could not save this grade — please try again.');
+        } finally {
+            confirmGrade.disabled = false;
         }
-
-        gradeModal.classList.remove('open');
-        targetGradingId = null;
     });
 
     // Handle Creating New Assignments
     createBtn.addEventListener('click', () => {
         document.getElementById('newTitle').value = '';
         document.getElementById('newDueDate').value = '';
+        populateCourseSelect();
         addAssignmentModal.classList.add('open');
     });
 
     closeCreate.addEventListener('click', () => addAssignmentModal.classList.remove('open'));
 
-    confirmCreate.addEventListener('click', () => {
+    confirmCreate.addEventListener('click', async () => {
         const title = document.getElementById('newTitle').value.trim();
         const course = document.getElementById('newCourse').value;
         const rawDate = document.getElementById('newDueDate').value;
-        const urgency = document.getElementById('newUrgency').value;
 
-        if (!title || !rawDate) {
+        if (!title || !course || !rawDate) {
             showToast('Please complete all assignment fields.');
             return;
         }
 
-        const parsedDate = new Date(rawDate);
+        confirmCreate.disabled = true;
+        try {
+            const newId = await TalentFlowData.saveAssignment(currentInstructorId, {
+                title,
+                course,
+                instructions: '',
+                dueDate: rawDate,
+                maxScore: 100,
+                assignTo: 'all',
+                status: 'published',
+            });
 
-        // Append to Assignments Model
-        GIVEN_ASSIGNMENTS.unshift({
-            id: Date.now(),
-            title: title,
-            course: course,
-            status: "Active",
-            subCount: 0
-        });
+            ASSIGNMENTS.push({
+                id: newId,
+                instructorId: currentInstructorId,
+                title,
+                course,
+                instructions: '',
+                dueDate: rawDate,
+                maxScore: 100,
+                assignTo: 'all',
+                status: 'published',
+                submissions: [],
+            });
 
-        // Append to Grading Schedule list
-        GRADING_SCHEDULE.unshift({
-            title: title + " Review",
-            course: course,
-            date: parsedDate
-        });
-
-        renderGivenAssignments();
-        renderSchedule();
-        addAssignmentModal.classList.remove('open');
-        showToast('New assignment published successfully! 🚀');
+            computeDerivedData();
+            updateUIElements();
+            renderGivenAssignments();
+            renderSchedule();
+            addAssignmentModal.classList.remove('open');
+            showToast('New assignment published successfully! 🚀');
+        } catch (err) {
+            console.error('Creating assignment failed:', err);
+            showToast('Could not create the assignment — please try again.');
+        } finally {
+            confirmCreate.disabled = false;
+        }
     });
 }
 
@@ -594,8 +772,7 @@ function initNavbar() {
     }
 
     // Mobile hamburger/sidebar/overlay are handled by mobile-nav.js
-    // (also loaded on this page) — it covers everything the old handler
-    // here did, plus escape key, aria states, and closing on nav-link tap.
+    // (also loaded on this page).
 }
 
 // ── WELCOME BANNER DISMISSAL ───────────────
@@ -614,3 +791,30 @@ function initWelcomeDismiss() {
         setTimeout(() => banner.remove(), 420);
     });
 }
+
+// ── INITIALIZE APPLICATION ─────────────────
+document.addEventListener('DOMContentLoaded', async () => {
+    setGreeting();
+    initTabs();
+    initModals();
+    initNavbar();
+    initWelcomeDismiss();
+
+    const auth = await waitForTalentFlowAuth();
+    if (!auth) {
+        showToast("Couldn't connect — please refresh the page.");
+        return;
+    }
+
+    let user;
+    try {
+        user = await auth.requireAuth(); // redirects to login.html if signed out
+    } catch (err) {
+        console.error('Auth check failed:', err);
+        return;
+    }
+    if (!user) return;
+
+    currentInstructorId = user.uid;
+    await refreshAndRender();
+});
