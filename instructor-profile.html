@@ -26,6 +26,19 @@
 
     <main class="profile-shell">
 
+        <!-- ── LOADING STATE ────────────────────────────────────── -->
+        <div class="profile-loading" id="profileLoading">
+            <div class="loading-spinner" aria-hidden="true"></div>
+            <p>Loading your profile…</p>
+        </div>
+
+        <!-- ── ERROR STATE ──────────────────────────────────────── -->
+        <div class="profile-error" id="profileError" hidden>
+            <div class="profile-error-icon" aria-hidden="true">!</div>
+            <p id="profileErrorText">We couldn't load your profile. Please check your connection.</p>
+            <button type="button" class="btn-secondary" id="profileRetryBtn">Try again</button>
+        </div>
+
         <!-- ── VIEW MODE ───────────────────────────────────────── -->
         <section class="profile-view" id="profileView" hidden>
             <div class="profile-card">
