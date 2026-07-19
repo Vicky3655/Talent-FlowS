@@ -32,7 +32,7 @@ function friendlyError(err) {
   if (msg.includes('failed to fetch') || msg.includes('network')) return 'Network error — check your connection and try again';
   if (msg.includes('email not confirmed')) return 'Please confirm your email before logging in';
   if (msg.includes('row-level security') || msg.includes('permission denied')) return "That action isn't permitted — check your account permissions";
-  if (msg.includes('bucket') || msg.includes('storage')) return "File upload isn't permitted — check your Supabase Storage setup";
+  if (msg.includes('bucket') || msg.includes('storage')) return "Photo upload isn't permitted — check your Supabase Storage setup";
   if (msg.includes('invalid email')) return 'Enter a valid email address';
 
   return 'Something went wrong — please try again';
@@ -148,31 +148,6 @@ async function uploadAvatar(uid, fileOrDataUrl) {
   if (uploadError) throw uploadError;
 
   const { data } = supabase.storage.from('avatars').getPublicUrl(path);
-  return data.publicUrl;
-}
-
-/* ── ASSIGNMENT SUBMISSION FILES (Supabase Storage) ───────────
-   Same pattern as uploadAvatar, but into a separate "submissions"
-   bucket so a student's homework upload can never collide with —
-   or need the same permissions as — profile photos. The resulting
-   public URL is what gets saved as submissionLink on the
-   assignment's submissions[] entry (see data-store.js). Requires
-   a "submissions" bucket to exist in Supabase Storage — see
-   supabase-policies.sql. ──────────────────────────────────────── */
-async function uploadSubmissionFile(uid, file) {
-  const timeoutMsg = 'File upload timed out. In the Supabase dashboard, check Storage → make sure the "submissions" bucket exists.';
-  const contentType = file.type || 'application/octet-stream';
-  const safeName = (file.name || 'submission').replace(/[^a-zA-Z0-9.\-_]/g, '_');
-  const path = `${uid}/${Date.now()}-${safeName}`;
-
-  const { error: uploadError } = await withTimeout(
-    supabase.storage.from('submissions').upload(path, file, { contentType, upsert: true }),
-    20000,
-    timeoutMsg
-  );
-  if (uploadError) throw uploadError;
-
-  const { data } = supabase.storage.from('submissions').getPublicUrl(path);
   return data.publicUrl;
 }
 
@@ -356,12 +331,14 @@ window.TalentFlowAuth = {
     return currentUser.emailVerified;
   },
 
-  setRole(role) {
+  async setRole(role) {
     const user = window.TalentFlowUser;
     if (!user) { window.location.href = 'login.html'; return; }
-    saveProfile(user.uid, { role }).catch((err) => {
+    try {
+      await saveProfile(user.uid, { role });
+    } catch (err) {
       console.error('Role save failed (continuing anyway):', err);
-    });
+    }
     this.redirectToRoleProfile(role);
   },
 
@@ -398,7 +375,6 @@ window.TalentFlowAuth = {
   },
 
   uploadAvatar,
-  uploadSubmissionFile,
   initialsAvatar,
   friendlyError,
 
