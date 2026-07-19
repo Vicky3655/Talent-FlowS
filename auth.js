@@ -3,8 +3,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 const SUPABASE_URL = 'https://ontaucdcmrkyvpflxtti.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_x-zRHHlxLCq1gh28aTv-0w_kht1wDxa';
 const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_ANON_KEY
+  'YOUR_SUPABASE_URL',
+  'YOUR_SUPABASE_ANON_KEY'
 )
 
 let authReady = false;
