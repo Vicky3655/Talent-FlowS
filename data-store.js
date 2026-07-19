@@ -286,43 +286,26 @@ async function getAssignmentsForStudent(studentId) {
 }
 
 async function submitStudentAssignment(assignmentId, studentId, submission) {
-  const { data, error } = await supabase
-    .from('assignments')
-    .select('submissions')
-    .eq('id', assignmentId)
-    .single();
+  // This goes through the submit_assignment() Postgres function rather
+  // than a plain table update. Submissions live as one JSONB array on
+  // the assignment row, and RLS can restrict which ROWS a policy
+  // covers but not which KEYS inside that array got touched — a
+  // client-side read-modify-write with a row-level "students can
+  // update their own assignment's submissions" policy would let a
+  // student overwrite the whole array, including handing themselves a
+  // score. The RPC runs with elevated rights but only ever touches the
+  // calling student's own entry and always resets score/feedback to
+  // blank, so submitting can never double as self-grading. `studentId`
+  // is kept in the signature for compatibility with existing callers,
+  // but the server derives the real student from the caller's own
+  // session, not from anything the client sends.
+  const { data, error } = await supabase.rpc('submit_assignment', {
+    p_assignment_id: assignmentId,
+    p_text: submission.text || '',
+    p_link: submission.link || '',
+  });
   if (error) throw error;
-
-  const submissions = data.submissions || [];
-  const idx = submissions.findIndex((s) => s.studentId === studentId);
-  const now = new Date().toISOString();
-
-  if (idx >= 0) {
-    submissions[idx] = {
-      ...submissions[idx],
-      submittedAt: now,
-      submissionText: submission.text || '',
-      submissionLink: submission.link || '',
-      // Resubmitting clears any earlier grade — the instructor needs
-      // to look at the new work, not the old score.
-      score: null,
-      feedback: '',
-      gradedAt: null,
-    };
-  } else {
-    submissions.push({
-      studentId,
-      submittedAt: now,
-      score: null,
-      feedback: '',
-      submissionText: submission.text || '',
-      submissionLink: submission.link || '',
-    });
-  }
-
-  const { error: uErr } = await supabase.from('assignments').update({ submissions }).eq('id', assignmentId);
-  if (uErr) throw uErr;
-  return submissions.find((s) => s.studentId === studentId);
+  return data;
 }
 
 /* ── PUBLIC INTERFACE ─────────────────────────────────────── */
