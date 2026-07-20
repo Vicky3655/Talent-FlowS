@@ -40,8 +40,16 @@ function friendlyError(err) {
 
 /* ── TIMEOUT HELPER ───────────────────────────────────────────
    Never let a Supabase call hang forever — same safeguard the
-   Firestore version had against silent failures. ───────────── */
-function withTimeout(promise, ms = 4000, message = 'Request timed out') {
+   Firestore version had against silent failures.
+
+   The default used to be 4000ms, which is tight enough to
+   misfire on an ordinary slow connection — and Supabase free-tier
+   projects that have gone idle can take well over that just to
+   wake back up on their first request. 15s gives a cold project
+   room to respond without leaving a genuinely broken request
+   hanging forever. uploadAvatar() below already passes its own,
+   longer override. ───────────────────────────────────────────── */
+function withTimeout(promise, ms = 15000, message = 'Request timed out') {
   return Promise.race([
     promise,
     new Promise((_, reject) => setTimeout(() => reject(new Error(message)), ms)),
@@ -203,6 +211,22 @@ let authReady = false;
 let currentUser = null;
 const readyCallbacks = [];
 
+// Set by signInWithGoogle() right before it redirects to Google, and
+// read back here once the browser lands back on this origin. This is
+// what actually detects "we just got back from a Google sign-in" —
+// see the comment below on why sniffing the URL for it isn't
+// reliable. sessionStorage (not localStorage) is deliberate: it's
+// scoped to this one tab, so a stale flag can't bleed into another
+// tab's sign-in.
+const OAUTH_PENDING_KEY = 'tf_oauth_pending';
+
+function readOAuthPendingFlag() {
+  try { return sessionStorage.getItem(OAUTH_PENDING_KEY); } catch (err) { return null; }
+}
+function clearOAuthPendingFlag() {
+  try { sessionStorage.removeItem(OAUTH_PENDING_KEY); } catch (err) { /* storage may be unavailable */ }
+}
+
 function normalizeUser(user) {
   if (!user) return null;
   const meta = user.user_metadata || {};
@@ -226,11 +250,18 @@ supabase.auth.onAuthStateChange(async (event, session) => {
     window.dispatchEvent(new CustomEvent('tf-password-recovery'));
   }
 
-  // Completing a Google redirect lands back here with tokens in the
-  // URL hash — finish the same "check profile, go to the right page"
-  // step the old popup flow used to do inline.
-  if (event === 'SIGNED_IN' && currentUser && window.location.hash.includes('access_token')) {
-    history.replaceState(null, '', window.location.pathname + window.location.search);
+  // Completing a Google redirect lands back here as a plain SIGNED_IN
+  // event. There's no reliable way to recognise "we just came back
+  // from Google" by inspecting the URL: Supabase's client defaults to
+  // the PKCE flow (a `?code=` query param, not `#access_token=` in
+  // the hash), and either way the client library can already have
+  // stripped it from the URL by the time this callback runs. So
+  // signInWithGoogle() sets a flag right before it redirects, and
+  // this is what actually reads it back — reliable regardless of
+  // which flow or URL shape Supabase uses under the hood.
+  if (event === 'SIGNED_IN' && currentUser && readOAuthPendingFlag()) {
+    clearOAuthPendingFlag();
+    history.replaceState(null, '', window.location.pathname);
     try {
       const existing = await loadProfile(currentUser.uid);
       if (!existing) {
@@ -267,11 +298,16 @@ function initialsAvatar(label) {
 window.TalentFlowAuth = {
   async signInWithGoogle() {
     const redirectTo = window.location.origin + window.location.pathname;
+    try { sessionStorage.setItem(OAUTH_PENDING_KEY, '1'); } catch (err) { /* storage may be unavailable */ }
     const { error } = await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo } });
-    if (error) throw error;
+    if (error) {
+      clearOAuthPendingFlag(); // never actually redirected, so nothing to detect on return
+      throw error;
+    }
   },
 
   async register(name, email, password) {
+    clearOAuthPendingFlag(); // this is definitely not a Google sign-in landing
     const { data, error } = await supabase.auth.signUp({
       email, password, options: { data: { full_name: name } },
     });
@@ -284,6 +320,7 @@ window.TalentFlowAuth = {
   },
 
   async login(email, password) {
+    clearOAuthPendingFlag(); // this is definitely not a Google sign-in landing
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
     const user = normalizeUser(data.user);
@@ -331,14 +368,20 @@ window.TalentFlowAuth = {
     return currentUser.emailVerified;
   },
 
+  // Was fire-and-forget: it kicked off the profile save but redirected
+  // on the very next line without waiting for it, and swallowed any
+  // save error internally. On an ordinary connection the save usually
+  // wins that race, which is exactly what made this easy to miss — but
+  // "usually" meant that, occasionally, the browser could tear down
+  // the in-flight request when the page navigated, the role would
+  // silently never get written, and the person would land back on
+  // "choose your role" on their next visit as if they'd never picked
+  // one. Now it's async, awaits the save before navigating, and lets a
+  // real failure propagate to the caller instead of hiding it.
   async setRole(role) {
     const user = window.TalentFlowUser;
     if (!user) { window.location.href = 'login.html'; return; }
-    try {
-      await saveProfile(user.uid, { role });
-    } catch (err) {
-      console.error('Role save failed (continuing anyway):', err);
-    }
+    await saveProfile(user.uid, { role });
     this.redirectToRoleProfile(role);
   },
 
