@@ -40,7 +40,6 @@ const CONFIG = {
   instructor: {
     tagClass: 'tag-chip',
     linkClass: '',
-    coursesUrl: 'courses.html',
     storageKey: 'tf_instructor_profile',
     roleLabel: 'Instructor',
     fields: ['fullName', 'title', 'bio', 'expertise', 'experience', 'education', 'linkedin', 'website'],
@@ -62,7 +61,6 @@ const CONFIG = {
   student: {
     tagClass: 'profile-tag',
     linkClass: 'profile-link',
-    coursesUrl: 'student-courses.html',
     storageKey: 'tf_student_profile',
     roleLabel: 'Student',
     fields: ['fullName', 'email', 'educationLevel', 'fieldOfStudy', 'bio', 'interests', 'goals', 'linkedin', 'github'],
@@ -321,7 +319,11 @@ document.addEventListener('DOMContentLoaded', () => {
       if (topbarAvatar && profile.avatar) topbarAvatar.src = profile.avatar;
 
       if (isFirstCompletion) {
-        window.location.href = cfg.coursesUrl;
+        // Send a freshly-onboarded person to their dashboard, not back
+        // to the course catalog — redirectToRoleProfile is the one
+        // place that knows the right dashboard URL per role, so it's
+        // reused here rather than duplicating that mapping.
+        auth.redirectToRoleProfile(cfg.roleLabel, user, true);
       } else {
         showView(profile);
       }
