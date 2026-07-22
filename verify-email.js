@@ -2,75 +2,70 @@
    TALENT FLOW  |  verify-email.js
    ------------------------------------------------------------
    Shown to email/password accounts until they click the link
-   Firebase emailed them. Google sign-ins skip this page entirely
-   (Firebase already marks those accounts verified).
+   Supabase emailed them. Google sign-ins skip this page entirely
+   (Supabase already marks those accounts verified).
+
+   Important: someone who just registered has NO session yet —
+   Supabase doesn't log an email/password account in until the
+   confirmation link is clicked — so this page has to work with
+   whenAuthReady() (which resolves with null rather than
+   redirecting) instead of requireAuth(). The email address to
+   show/resend to comes from window.TalentFlowUser if a session
+   does exist, otherwise from the ?email= the person arrived with
+   (see auth.js's redirectToRoleProfile()).
    ============================================================ */
-
-// auth.js is an ES module fetching an external dependency, so there's
-// no hard guarantee window.TalentFlowAuth exists the instant this
-// script's DOMContentLoaded callback fires. Poll briefly instead of
-// checking once and silently doing nothing.
-function waitForTalentFlowAuth(timeoutMs = 8000) {
-  if (window.TalentFlowAuth) return Promise.resolve(window.TalentFlowAuth);
-  return new Promise((resolve) => {
-    const start = Date.now();
-    const timer = setInterval(() => {
-      if (window.TalentFlowAuth) {
-        clearInterval(timer);
-        resolve(window.TalentFlowAuth);
-      } else if (Date.now() - start > timeoutMs) {
-        clearInterval(timer);
-        resolve(null);
-      }
-    }, 50);
-  });
-}
-
 document.addEventListener('DOMContentLoaded', async () => {
-  const auth = await waitForTalentFlowAuth();
-  if (!auth) {
-    const hint = document.getElementById('verifyHint');
-    if (hint) {
-      hint.textContent = "Couldn't reach Talent Flow's sign-in service. Please refresh the page.";
-      hint.className = 'verify-hint error';
-    }
+  const auth = window.TalentFlowAuth;
+  if (!auth) return;
+
+  const queryEmail = new URLSearchParams(window.location.search).get('email') || '';
+  const user = await auth.whenAuthReady(); // null is expected right after registering, not an error
+
+  // Already verified (e.g. they clicked the link in another tab, or a
+  // session already existed) — don't make them sit here, send them on.
+  if (user && user.emailVerified) {
+    await continueOnward(user);
     return;
   }
 
-  const user = await auth.requireAuth(); // redirects to login.html if signed out
-
-  // Already verified (e.g. they clicked the link in another tab) —
-  // don't make them sit here, send them straight on.
-  if (user.emailVerified) {
-    await continueOnward();
-    return;
-  }
-
-  const emailEl   = document.getElementById('verifyEmailAddress');
-  const checkBtn  = document.getElementById('checkVerifiedBtn');
-  const resendBtn = document.getElementById('resendBtn');
-  const hint      = document.getElementById('verifyHint');
+  const emailEl    = document.getElementById('verifyEmailAddress');
+  const checkBtn   = document.getElementById('checkVerifiedBtn');
+  const resendBtn  = document.getElementById('resendBtn');
+  const hint       = document.getElementById('verifyHint');
   const logoutLink = document.getElementById('logoutLink');
 
-  if (emailEl) emailEl.textContent = user.email || 'your email';
+  // A real session's email is always trusted over the query string;
+  // the query string only fills in for the common no-session case.
+  const knownEmail = (user && user.email) || queryEmail;
+  if (emailEl) emailEl.textContent = knownEmail || 'your email';
 
   function setHint(text, kind) {
     hint.textContent = text;
     hint.className = 'verify-hint' + (kind ? ` ${kind}` : '');
   }
 
-  async function continueOnward() {
+  async function continueOnward(u) {
     let role = '';
     try {
-      const profile = await auth.loadProfile(user.uid);
+      const profile = await auth.loadProfile(u.uid);
       role = profile ? profile.role : '';
     } catch (err) {
       console.error('Profile read failed (continuing anyway):', err);
     }
-    auth.redirectToRoleProfile(role, user);
+    auth.redirectToRoleProfile(role, u);
   }
 
   checkBtn?.addEventListener('click', async () => {
+    // No session at all (the normal case right after registering) —
+    // there's nothing here to re-check against. Logging in is what
+    // actually confirms it: it succeeds once the link's been clicked,
+    // and fails with a clear "please confirm your email" message if not.
+    if (!user) {
+      const q = knownEmail ? ('?email=' + encodeURIComponent(knownEmail)) : '';
+      window.location.href = 'login.html' + q;
+      return;
+    }
+
     checkBtn.disabled = true;
     checkBtn.textContent = 'Checking…';
     setHint('', '');
@@ -79,7 +74,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const verified = await auth.checkEmailVerified();
       if (verified) {
         setHint('✓ Verified! Taking you in…', 'success');
-        setTimeout(continueOnward, 600);
+        setTimeout(() => continueOnward(window.TalentFlowUser || user), 600);
       } else {
         setHint("Not verified yet — click the link in the email first.", 'error');
         checkBtn.disabled = false;
@@ -110,9 +105,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   resendBtn?.addEventListener('click', async () => {
+    if (!knownEmail) {
+      setHint('Register again first — there\u2019s no email address to resend to.', 'error');
+      return;
+    }
     resendBtn.disabled = true;
     try {
-      await auth.sendVerificationEmail();
+      await auth.sendVerificationEmail(knownEmail);
       setHint('Sent — check your inbox (and spam folder).', 'success');
       startCooldown(45);
     } catch (err) {
@@ -121,5 +120,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
-  logoutLink?.addEventListener('click', () => auth.logOut());
+  logoutLink?.addEventListener('click', () => {
+    if (user) auth.logOut();
+    else window.location.href = 'login.html';
+  });
 });
