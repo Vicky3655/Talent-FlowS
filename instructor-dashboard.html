@@ -6,7 +6,6 @@
     <link rel="stylesheet" href="instructor-dashboard.css">
     <link rel="stylesheet" href="mobile-nav.css">
     <script type="module" src="auth.js"></script>
-    <script type="module" src="data-store.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -52,8 +51,8 @@
                 </div>
             </div>
             <div class="pp-divider"></div>
-            <a href="instructor-profile.html" class="pp-item">Profile</a>
-            <a href="courses.html" class="pp-item">My Courses</a>
+            <a href="#" class="pp-item">Profile</a>
+            <a href="#" class="pp-item">My Courses</a>
             <div class="pp-divider"></div>
             <a href="#" class="pp-item" id="navLogoutLink">Log Out</a>
         </div>
@@ -287,7 +286,7 @@
             <section class="section-card">
                 <div class="sc-header">
                     <h3>Class Engagement</h3>
-                    <span class="badge-pill green">Real-time</span>
+                    <span class="badge-pill green">Cohort 4</span>
                 </div>
                 <div class="participation-wrap">
                     <canvas id="radarCanvas" width="220" height="220"></canvas>
@@ -318,8 +317,8 @@
         <!-- Student Upload Preview -->
         <div class="file-preview" id="studentFilePreview" style="margin-bottom:12px;"></div>
         
-        <label for="gradeValue" style="display:block; font-size:13px; font-weight:600; color:var(--slate-5); margin-bottom:6px;">Score</label>
-        <input type="number" id="gradeValue" min="0" placeholder="Enter grade" style="width:100%; padding:10px 14px; border:1px solid var(--slate-2); border-radius:10px; font-size:14px; margin-bottom:14px; font-family:inherit; outline:none;">
+        <label for="gradeValue" style="display:block; font-size:13px; font-weight:600; color:var(--slate-5); margin-bottom:6px;">Score (0 - 100)</label>
+        <input type="number" id="gradeValue" min="0" max="100" placeholder="Enter grade (e.g. 85)" style="width:100%; padding:10px 14px; border:1px solid var(--slate-2); border-radius:10px; font-size:14px; margin-bottom:14px; font-family:inherit; outline:none;">
         
         <label for="gradeFeedback" style="display:block; font-size:13px; font-weight:600; color:var(--slate-5); margin-bottom:6px;">Feedback (Optional)</label>
         <textarea id="gradeFeedback" placeholder="Write feedback for the student..." rows="3"></textarea>
@@ -339,12 +338,20 @@
         
         <label for="newCourse">Course</label>
         <select id="newCourse">
-            <option value="">Loading your courses…</option>
+            <option value="Advanced JavaScript">Advanced JavaScript</option>
+            <option value="Backend Engineering Node.js">Backend Engineering Node.js</option>
+            <option value="UI/UX Principles">UI/UX Principles</option>
         </select>
         
         <label for="newDueDate">Due Date</label>
         <input type="date" id="newDueDate">
 
+        <label for="newUrgency">Urgency Priority</label>
+        <select id="newUrgency">
+            <option value="normal">Normal Priority</option>
+            <option value="urgent">High Priority</option>
+        </select>
+        
         <button class="submit-btn" id="confirmCreateAssignment">Publish Assignment</button>
     </div>
 </div>
