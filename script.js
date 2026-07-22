@@ -1,29 +1,14 @@
-// auth.js is an ES module fetching an external dependency, so there's
-// no hard guarantee window.TalentFlowAuth exists the instant this
-// script's DOMContentLoaded callback fires. This page holds the
-// login/register/reset buttons — the most-used entry points in the
-// whole app — so it's worth waiting properly instead of capturing
-// `window.TalentFlowAuth` once and leaving every button showing
-// "still starting up" on a first click that just happened to land
-// before auth.js finished loading.
-function waitForTalentFlowAuth(timeoutMs = 8000) {
-    if (window.TalentFlowAuth) return Promise.resolve(window.TalentFlowAuth);
-    return new Promise((resolve) => {
-        const start = Date.now();
-        const timer = setInterval(() => {
-            if (window.TalentFlowAuth) {
-                clearInterval(timer);
-                resolve(window.TalentFlowAuth);
-            } else if (Date.now() - start > timeoutMs) {
-                clearInterval(timer);
-                resolve(null);
-            }
-        }, 50);
-    });
-}
+document.addEventListener("DOMContentLoaded", () => {
+    const auth = window.TalentFlowAuth;
 
-document.addEventListener("DOMContentLoaded", async () => {
-    const auth = await waitForTalentFlowAuth();
+    // Prefill the email field from ?email=... if present — e.g. after
+    // being sent here from verify-email.html, so nobody has to retype
+    // the address they just registered with.
+    const emailField = document.getElementById("Email");
+    if (emailField && !emailField.value) {
+        const prefill = new URLSearchParams(window.location.search).get("email");
+        if (prefill) emailField.value = prefill;
+    }
 
     const googleBtn = document.getElementById("googleSignInBtn");
     if (googleBtn) {
@@ -32,11 +17,8 @@ document.addEventListener("DOMContentLoaded", async () => {
                 alert("Still starting up — please try again in a moment.");
                 return;
             }
-            // signInWithGoogle() does a full-page redirect, not a popup,
-            // so Supabase never actually throws a "popup closed" style
-            // error here — that was a leftover Firebase-specific check
-            // that could never match anything Supabase returns.
             auth.signInWithGoogle().catch((err) => {
+                if (err && (err.code === "auth/popup-closed-by-user" || err.code === "auth/cancelled-popup-request")) return;
                 alert(auth.friendlyError ? auth.friendlyError(err) : "Something went wrong — please try again.");
             });
         });
@@ -107,8 +89,8 @@ document.addEventListener("DOMContentLoaded", async () => {
 
             loginBtn.disabled = true;
             try {
-                const { user, role, profileCompleted } = await auth.login(email, password);
-                auth.redirectToRoleProfile(role, user, profileCompleted);
+                const { user, role } = await auth.login(email, password);
+                auth.redirectToRoleProfile(role, user);
             } catch (err) {
                 loginBtn.disabled = false;
                 alert(auth.friendlyError ? auth.friendlyError(err) : "Incorrect email or password.");
