@@ -434,6 +434,7 @@ window.TalentFlowAuth = {
   rememberPendingEmail(email) { setPendingVerification(email); },
   getPendingVerificationEmail,
   clearPendingVerification,
+  isAuthRedirectReturn,
 
   saveProfile,
   loadProfile,
