@@ -253,6 +253,22 @@ function normalizeUser(user) {
   };
 }
 
+// True if the CURRENT URL looks like it just came back from an auth
+// redirect (Google OAuth, or an email-confirmation link) rather than a
+// normal page load or a plain signInWithPassword() call. Supabase uses
+// two different formats depending on the flow type configured for the
+// project, so both are checked here:
+//   - implicit flow → "#access_token=…" in the hash
+//   - PKCE flow     → "?code=…" in the query string
+// Either one means there's a token/code for the SDK to have just
+// consumed, which is what the block below reacts to.
+function isAuthRedirectReturn() {
+  const hash = window.location.hash || '';
+  const hasToken = hash.includes('access_token');
+  const hasCode = new URLSearchParams(window.location.search || '').has('code');
+  return hasToken || hasCode;
+}
+
 supabase.auth.onAuthStateChange(async (event, session) => {
   currentUser = normalizeUser(session ? session.user : null);
   window.TalentFlowUser = currentUser;
@@ -264,11 +280,14 @@ supabase.auth.onAuthStateChange(async (event, session) => {
     window.dispatchEvent(new CustomEvent('tf-password-recovery'));
   }
 
-  // Completing a Google redirect OR an email-confirmation link both land
-  // back here with tokens in the URL hash — finish the same "check
-  // profile, go to the right page" step for either one.
-  if (event === 'SIGNED_IN' && currentUser && window.location.hash.includes('access_token')) {
-    history.replaceState(null, '', window.location.pathname + window.location.search);
+  // Landing back here from a Google OAuth redirect, an email-confirmation
+  // link, or a magic-link-style redirect all look the same from this
+  // point on: a brand new SIGNED_IN session, with a token or code still
+  // sitting in the URL. Whichever page that happens to land on (ideally
+  // auth-callback.html, but this works anywhere auth.js is loaded),
+  // finish the same "check profile, go to the right page" step.
+  if (event === 'SIGNED_IN' && currentUser && isAuthRedirectReturn()) {
+    history.replaceState(null, '', window.location.pathname);
     clearPendingVerification();
     try {
       const existing = await loadProfile(currentUser.uid);
