@@ -1,59 +1,53 @@
 /* ============================================================
    TALENT FLOW  |  auth-callback.js
    ------------------------------------------------------------
-   Landing point after someone clicks the confirmation link in
-   their sign-up email (see the emailRedirectTo passed in
-   auth.js's register()/sendVerificationEmail()). Supabase already
-   verifies the token before it ever gets here, and either lands
-   on this page with session tokens in the URL hash, or with
-   #error=... if the link was invalid or had expired.
+   Landing page for links that hand back a Supabase session: the
+   email-confirmation link (emailRedirectTo in auth.js's
+   register()) and, as a fallback, Google OAuth. auth.js's own
+   onAuthStateChange listener does the actual work — detecting
+   the token in the URL, creating the profile row if this is a
+   brand new account, and calling redirectToRoleProfile(). This
+   page just needs to exist, load auth.js, and wait.
 
-   auth.js's own onAuthStateChange listener — loaded via the
-   module script tag on this page — is what actually detects a
-   valid token, establishes the session, saves/loads the profile,
-   and moves the person on to the right next page. This file only
-   covers what that listener doesn't: showing a clear message for
-   a bad link, and making sure nobody is ever left stranded on a
-   spinner indefinitely if something unexpected happens.
+   A short timeout redirects to login.html if nothing happens, so
+   nobody gets stuck staring at a spinner forever (e.g. an expired
+   or already-used confirmation link).
    ============================================================ */
-document.addEventListener('DOMContentLoaded', () => {
-    const statusEl  = document.getElementById('callbackStatus');
-    const errorEl   = document.getElementById('callbackError');
-    const actionsEl = document.getElementById('callbackActions');
-    const hash      = window.location.hash;
+(function () {
+    const text = document.getElementById('cbText');
 
-    function showError(message) {
-        if (statusEl) statusEl.hidden = true;
-        if (errorEl) {
-            errorEl.textContent = message;
-            errorEl.hidden = false;
-        }
-        if (actionsEl) actionsEl.hidden = false;
-    }
-
-    // An invalid or expired confirmation link comes back as
-    // #error=...&error_description=... instead of an access token.
-    if (hash.includes('error=')) {
-        const params = new URLSearchParams(hash.slice(1));
-        const desc = params.get('error_description');
-        showError(desc
-            ? decodeURIComponent(desc.replace(/\+/g, ' '))
-            : 'That link is invalid or has expired — please request a new one.');
-        return;
-    }
-
-    // No token and no error means someone opened this page directly
-    // rather than arriving from an email link — nothing to do here.
-    if (!hash.includes('access_token') && !window.location.search.includes('code=')) {
-        window.location.href = 'login.html';
-        return;
-    }
-
-    // Otherwise auth.js's listener should pick up the token and move
-    // things along within a moment. If it somehow doesn't (network
-    // hiccup, a redirect URL that isn't allow-listed in the Supabase
-    // dashboard, etc.), don't leave the person on an endless spinner.
-    setTimeout(() => {
-        showError('This is taking longer than expected. Please try logging in.');
+    const fallback = setTimeout(() => {
+        if (text) text.textContent = 'Taking longer than expected — redirecting…';
+        setTimeout(() => { window.location.href = 'login.html'; }, 1500);
     }, 8000);
-});
+
+    function clearFallback() { clearTimeout(fallback); }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const auth = window.TalentFlowAuth;
+        if (!auth) return; // auth.js failed to load — let the timeout above handle it
+
+        auth.whenAuthReady().then((user) => {
+            // auth.js's onAuthStateChange listener already redirects onward
+            // the moment it sees a token in the URL hash. If we land here
+            // with a confirmed, signed-in user and are STILL on this page a
+            // moment later, that listener hasn't fired for some reason —
+            // nudge it along rather than leaving the person stranded.
+            if (user && user.emailVerified) {
+                clearFallback();
+                setTimeout(async () => {
+                    if (window.location.pathname.endsWith('auth-callback.html')) {
+                        let role = '';
+                        try {
+                            const profile = await auth.loadProfile(user.uid);
+                            role = profile ? profile.role : '';
+                        } catch (err) {
+                            console.error('Profile read failed on callback page (continuing anyway):', err);
+                        }
+                        auth.redirectToRoleProfile(role, user);
+                    }
+                }, 1200);
+            }
+        });
+    });
+})();
