@@ -3,75 +3,40 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="page.css">
     <script type="module" src="auth.js"></script>
     <script src="auth-callback.js" defer></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
-    <title>Talent Flow</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <title>Signing you in… — Talent Flow</title>
     <style>
-        /* page.css already supplies #loader / .logo-wrapper / .loader-icon
-           / .loader-text, reused as-is so this matches the splash screen
-           exactly. Only the status/error text below the logo is new. */
-        .loader-inner {
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #F8FAFC;
+            color: #0F172A;
+            min-height: 100vh;
             display: flex;
-            flex-direction: column;
             align-items: center;
-            gap: 18px;
-            padding: 0 24px;
+            justify-content: center;
         }
-        .callback-status {
-            font-family: 'Inter', sans-serif;
-            font-size: 14px;
-            color: #64748B;
-            text-align: center;
+        .cb-box { text-align: center; padding: 24px; }
+        .cb-spinner {
+            width: 34px; height: 34px;
+            border: 3px solid #DBEAFE;
+            border-top-color: #2563EB;
+            border-radius: 50%;
+            margin: 0 auto 16px;
+            animation: cbspin 0.7s linear infinite;
         }
-        .callback-error {
-            font-family: 'Inter', sans-serif;
-            font-size: 14px;
-            color: #DC2626;
-            text-align: center;
-            max-width: 340px;
-            line-height: 1.6;
-        }
-        .callback-actions {
-            display: flex;
-            gap: 10px;
-        }
-        .callback-actions a {
-            font-family: 'Inter', sans-serif;
-            font-size: 13.5px;
-            font-weight: 700;
-            color: #2563EB;
-            text-decoration: none;
-            padding: 10px 18px;
-            border: 1.5px solid #DBEAFE;
-            border-radius: 8px;
-            transition: background-color 0.2s ease, border-color 0.2s ease;
-        }
-        .callback-actions a:hover {
-            background-color: #EFF6FF;
-            border-color: #2563EB;
-        }
+        @keyframes cbspin { to { transform: rotate(360deg); } }
+        .cb-text { font-size: 14px; color: #64748B; }
     </style>
 </head>
 <body>
-    <div id="loader">
-        <div class="loader-inner">
-            <div class="logo-wrapper">
-                <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="loader-icon">
-                    <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/>
-                </svg>
-                <span class="loader-text">Talent Flow</span>
-            </div>
-            <p class="callback-status" id="callbackStatus">Confirming your account…</p>
-            <p class="callback-error" id="callbackError" hidden></p>
-            <div class="callback-actions" id="callbackActions" hidden>
-                <a href="login.html">Go to login</a>
-                <a href="register.html">Back to sign up</a>
-            </div>
-        </div>
+    <div class="cb-box">
+        <div class="cb-spinner"></div>
+        <p class="cb-text" id="cbText">Confirming your account…</p>
     </div>
 </body>
 </html>
