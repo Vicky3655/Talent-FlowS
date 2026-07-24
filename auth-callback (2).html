@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script type="module" src="auth.js"></script>
+    <script src="auth-callback.js" defer></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <title>Signing you in… — Talent Flow</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #F8FAFC;
+            color: #0F172A;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .cb-box { text-align: center; padding: 24px; }
+        .cb-spinner {
+            width: 34px; height: 34px;
+            border: 3px solid #DBEAFE;
+            border-top-color: #2563EB;
+            border-radius: 50%;
+            margin: 0 auto 16px;
+            animation: cbspin 0.7s linear infinite;
+        }
+        @keyframes cbspin { to { transform: rotate(360deg); } }
+        .cb-text { font-size: 14px; color: #64748B; }
+    </style>
+</head>
+<body>
+    <div class="cb-box">
+        <div class="cb-spinner"></div>
+        <p class="cb-text" id="cbText">Confirming your account…</p>
+    </div>
+</body>
+</html>
