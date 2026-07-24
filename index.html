@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="page.css">
+    <script type="module" src="auth.js"></script>
     <script src="script.js" defer></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -28,7 +29,23 @@
 
 <script>
 window.addEventListener("load", () => {
-    // Keep it visible for 2 seconds so people actually see your logo
+    // If this load came from a Supabase auth redirect (an email
+    // confirmation link, or Google sign-in) there's a token sitting in
+    // the URL for auth.js's own listener to pick up and act on — it
+    // signs the person in and sends them to the right page on its own.
+    // Blindly jumping to register.html here (the old behavior) wiped
+    // that token out before any of that had a chance to run, which is
+    // exactly what was stranding people after confirming their email.
+    const auth = window.TalentFlowAuth;
+    if (auth && auth.isAuthRedirectReturn && auth.isAuthRedirectReturn()) {
+        // Safety net only — auth.js should navigate away on its own
+        // well before this fires. If it doesn't (a stalled request,
+        // say), don't leave anyone staring at the logo forever.
+        setTimeout(() => { window.location.href = "login.html"; }, 6000);
+        return;
+    }
+
+    // Normal first visit — show the splash, then go to registration.
     setTimeout(() => {
         document.body.classList.add("loaded");
     }, 2000); 
