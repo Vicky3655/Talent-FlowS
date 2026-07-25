@@ -6,13 +6,21 @@
     <link rel="stylesheet" href="settings.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
     <script type="module" src="auth.js"></script>
-    <title>Talent Flow – Settings</title>
+    <script type="module" src="data-store.js"></script>
+    <script src="settings.js" defer></script>
+    <title>Talent Flow – Student Settings</title>
 </head>
 <body>
 
-<!-- SIDEBAR -->
+<!-- HIDDEN COMPATIBILITY NAV -->
+<nav class="app-nav" style="display: none !important;">
+    <span id="navRole">Student</span>
+    <div class="avatar"><img src="" alt="" id="navAvatarImg"></div>
+</nav>
+
+<!-- SIDEBAR (Desktop Left Nav / Mobile Bottom Nav) -->
 <aside class="sidebar" id="sidebar">
     <a href="student-dashboard.html" class="sidebar-link" data-tip="Dashboard">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -27,7 +35,7 @@
             <path stroke-linecap="round" stroke-linejoin="round" d="M6 20.25h12m-7.5-3v3m3-3v3m-10.125-3h17.25c.621 0 1.125-.504 1.125-1.125V4.875c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125Z"/>
         </svg>
     </a>
-    <a href="assignment.html" class="sidebar-link" data-tip="Assignments">
+    <a href="student-assignment.html" class="sidebar-link" data-tip="Assignments">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25M9 16.5v.75m3-3v3M15 12v5.25m-4.5-15H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/>
         </svg>
@@ -39,7 +47,7 @@
     </a>
 </aside>
 
-<!-- TOP SUB-NAVIGATION MENU -->
+<!-- SUB-NAVIGATION MENU -->
 <div class="settings-nav">
     <button class="settings-nav-btn active" data-tab="profile">Profile</button>
     <button class="settings-nav-btn" data-tab="account">Account</button>
@@ -72,9 +80,9 @@
                         </div>
                     </div>
 
-                    <!-- Right Column: Form Section -->
+                    <!-- Right Column: Student Form Section -->
                     <div class="form-section">
-                        <h2 class="profile-name" id="profileDisplayName"></h2>
+                        <h2 class="profile-name" id="profileDisplayName">Student</h2>
                         
                         <div class="profile-fields">
                             <div class="field-row">
@@ -82,38 +90,20 @@
                                 <input type="email" id="fieldEmail" value="">
                             </div>
                             <div class="field-row">
-                                <label for="fieldBio">Bio:</label>
-                                <input type="text" id="fieldBio" value="">
-                            </div>
-                            <div class="field-row">
                                 <label for="fieldName">Full Name:</label>
                                 <input type="text" id="fieldName" value="">
                             </div>
                             <div class="field-row">
+                                <label for="fieldBio">Bio:</label>
+                                <input type="text" id="fieldBio" placeholder="Tell us about yourself…">
+                            </div>
+                            <div class="field-row">
                                 <label for="fieldRole">Role:</label>
-                                <input type="text" id="fieldRole" value="" readonly>
+                                <input type="text" id="fieldRole" value="Student" readonly>
                             </div>
 
-                            <!-- Instructor-only fields -->
-                            <div class="field-row role-field role-field-instructor" hidden>
-                                <label for="fieldTitle">Title:</label>
-                                <input type="text" id="fieldTitle" placeholder="e.g. Senior Data Science Instructor">
-                            </div>
-                            <div class="field-row role-field role-field-instructor" hidden>
-                                <label for="fieldExpertise">Expertise:</label>
-                                <input type="text" id="fieldExpertise" placeholder="e.g. Python, Machine Learning">
-                            </div>
-                            <div class="field-row role-field role-field-instructor" hidden>
-                                <label for="fieldExperience">Experience:</label>
-                                <input type="number" id="fieldExperience" min="0" max="60" placeholder="Years">
-                            </div>
-                            <div class="field-row role-field role-field-instructor" hidden>
-                                <label for="fieldEducation">Education:</label>
-                                <input type="text" id="fieldEducation" placeholder="Degrees & certifications">
-                            </div>
-
-                            <!-- Student-only fields -->
-                            <div class="field-row role-field role-field-student" hidden>
+                            <!-- Student Dynamic Fields -->
+                            <div class="field-row">
                                 <label for="fieldEducationLevel">Education level:</label>
                                 <select id="fieldEducationLevel">
                                     <option value="">--Please choose an option--</option>
@@ -123,29 +113,25 @@
                                     <option value="Professional / Self-taught">Professional / Self-taught</option>
                                 </select>
                             </div>
-                            <div class="field-row role-field role-field-student" hidden>
+                            <div class="field-row">
                                 <label for="fieldFieldOfStudy">Field of Study:</label>
-                                <input type="text" id="fieldFieldOfStudy" placeholder="e.g. Computer Science">
+                                <input type="text" id="fieldFieldOfStudy" placeholder="e.g. Computer Science, Design">
                             </div>
-                            <div class="field-row role-field role-field-student" hidden>
+                            <div class="field-row">
                                 <label for="fieldInterests">Interests:</label>
-                                <input type="text" id="fieldInterests" placeholder="Comma-separated topics">
+                                <input type="text" id="fieldInterests" placeholder="e.g. Web Dev, Machine Learning, UI/UX">
                             </div>
-                            <div class="field-row role-field role-field-student" hidden>
+                            <div class="field-row">
                                 <label for="fieldGoals">Learning Goals:</label>
-                                <input type="text" id="fieldGoals" placeholder="What you're working toward">
+                                <input type="text" id="fieldGoals" placeholder="What skills are you working toward?">
                             </div>
 
-                            <!-- Shared social links -->
+                            <!-- Social / Links -->
                             <div class="field-row">
                                 <label for="fieldLinkedin">LinkedIn:</label>
                                 <input type="url" id="fieldLinkedin" placeholder="https://linkedin.com/in/…">
                             </div>
-                            <div class="field-row role-field role-field-instructor" hidden>
-                                <label for="fieldWebsite">Website:</label>
-                                <input type="url" id="fieldWebsite" placeholder="https://…">
-                            </div>
-                            <div class="field-row role-field role-field-student" hidden>
+                            <div class="field-row">
                                 <label for="fieldGithub">GitHub:</label>
                                 <input type="url" id="fieldGithub" placeholder="https://github.com/…">
                             </div>
@@ -162,36 +148,38 @@
                 <h3 class="tab-heading">Account Settings</h3>
                 <div class="profile-fields">
                     <div class="field-row">
-                        <label>Username:</label>
-                        <input type="text" value="">
+                        <label for="fieldUsername">Username:</label>
+                        <input type="text" id="fieldUsername" value="">
                     </div>
                     <div class="field-row">
-                        <label>Language:</label>
-                        <select>
-                            <option>English</option>
-                            <option>French</option>
-                            <option>Spanish</option>
+                        <label for="fieldLanguage">Language:</label>
+                        <select id="fieldLanguage">
+                            <option value="English">English</option>
+                            <option value="French">French</option>
+                            <option value="Spanish">Spanish</option>
                         </select>
                     </div>
                     <div class="field-row">
-                        <label>Timezone:</label>
-                        <select>
-                            <option>Africa/Lagos (WAT)</option>
-                            <option>UTC</option>
-                            <option>America/New_York (EST)</option>
+                        <label for="fieldTimezone">Timezone:</label>
+                        <select id="fieldTimezone">
+                            <option value="Africa/Lagos (WAT)">Africa/Lagos (WAT)</option>
+                            <option value="UTC">UTC</option>
+                            <option value="America/New_York (EST)">America/New_York (EST)</option>
                         </select>
                     </div>
                 </div>
-                <button class="save-btn">Save Changes</button>
+                
+                <button class="save-btn" id="saveAccountBtn">Save Account</button>
+                <div class="save-toast" id="accountToast"></div>
 
                 <div class="danger-zone">
                     <h4>Session</h4>
-                    <button class="danger-btn" id="logoutBtn" style="background:#475569">Log Out</button>
+                    <button class="danger-btn" id="signOutBtn" style="background:#475569">Log Out</button>
                 </div>
 
                 <div class="danger-zone">
                     <h4>Danger Zone</h4>
-                    <button class="danger-btn">Delete Account</button>
+                    <button class="danger-btn" id="deleteAccountBtn">Delete Account Data</button>
                 </div>
             </div>
 
@@ -202,35 +190,47 @@
                     <div class="toggle-row">
                         <div>
                             <p class="toggle-label">Email Notifications</p>
-                            <p class="toggle-desc">Receive updates via email</p>
+                            <p class="toggle-desc">Receive updates and course activity via email</p>
                         </div>
                         <label class="toggle-switch">
-                            <input type="checkbox" checked>
+                            <input type="checkbox" id="notifyEmail" checked>
                             <span class="slider"></span>
                         </label>
                     </div>
                     <div class="toggle-row">
                         <div>
-                            <p class="toggle-label">Assignment Reminders</p>
-                            <p class="toggle-desc">Get notified before due dates</p>
+                            <p class="toggle-label">Assignment Due Reminders</p>
+                            <p class="toggle-desc">Get notified before assignment due dates</p>
                         </div>
                         <label class="toggle-switch">
-                            <input type="checkbox" checked>
+                            <input type="checkbox" id="notifyAssignments" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="toggle-row">
+                        <div>
+                            <p class="toggle-label">Course Announcements</p>
+                            <p class="toggle-desc">Receive new material updates from instructors</p>
+                        </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="notifyCourses" checked>
                             <span class="slider"></span>
                         </label>
                     </div>
                     <div class="toggle-row">
                         <div>
                             <p class="toggle-label">Platform Updates</p>
-                            <p class="toggle-desc">News and feature announcements</p>
+                            <p class="toggle-desc">News and new feature announcements</p>
                         </div>
                         <label class="toggle-switch">
-                            <input type="checkbox">
+                            <input type="checkbox" id="notifyPlatform">
                             <span class="slider"></span>
                         </label>
                     </div>
                 </div>
-                <button class="save-btn">Save Preferences</button>
+                
+                <button class="save-btn" id="saveNotificationsBtn">Save Preferences</button>
+                <div class="save-toast" id="notificationsToast"></div>
             </div>
 
             <!-- ── SECURITY TAB ── -->
@@ -238,11 +238,11 @@
                 <h3 class="tab-heading">Security Settings</h3>
                 <div class="profile-fields">
                     <div class="field-row">
-                        <label>Current Password:</label>
+                        <label for="currentPwd">Current Password:</label>
                         <div class="field-input-group">
                             <div class="password-wrap">
                                 <input type="password" id="currentPwd" placeholder="Enter current password">
-                                <button class="eye-btn" onclick="togglePwd('currentPwd', this)">
+                                <button type="button" class="eye-btn" onclick="togglePwd('currentPwd', this)">
                                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z"/>
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/>
@@ -252,11 +252,11 @@
                         </div>
                     </div>
                     <div class="field-row">
-                        <label>New Password:</label>
+                        <label for="newPwd">New Password:</label>
                         <div class="field-input-group">
                             <div class="password-wrap">
                                 <input type="password" id="newPwd" placeholder="Enter new password">
-                                <button class="eye-btn" onclick="togglePwd('newPwd', this)">
+                                <button type="button" class="eye-btn" onclick="togglePwd('newPwd', this)">
                                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z"/>
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/>
@@ -270,11 +270,11 @@
                         </div>
                     </div>
                     <div class="field-row">
-                        <label>Confirm Password:</label>
+                        <label for="confirmPwd">Confirm Password:</label>
                         <div class="field-input-group">
                             <div class="password-wrap">
                                 <input type="password" id="confirmPwd" placeholder="Confirm new password">
-                                <button class="eye-btn" onclick="togglePwd('confirmPwd', this)">
+                                <button type="button" class="eye-btn" onclick="togglePwd('confirmPwd', this)">
                                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z"/>
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"/>
@@ -284,17 +284,18 @@
                         </div>
                     </div>
                 </div>
-                <button class="save-btn" onclick="handlePasswordChange()">Update Password</button>
+                
+                <button type="button" class="save-btn" onclick="handlePasswordChange()">Update Password</button>
                 <div class="save-toast" id="pwdToast"></div>
 
                 <div class="security-extras">
                     <div class="toggle-row">
                         <div>
                             <p class="toggle-label">Two-Factor Authentication</p>
-                            <p class="toggle-desc">Add an extra layer of security</p>
+                            <p class="toggle-desc">Add an extra layer of security to your student account</p>
                         </div>
                         <label class="toggle-switch">
-                            <input type="checkbox">
+                            <input type="checkbox" id="twoFactorToggle">
                             <span class="slider"></span>
                         </label>
                     </div>
@@ -305,6 +306,5 @@
     </div>
 </main>
 
-<script src="settings.js"></script>
 </body>
 </html>
