@@ -3,56 +3,175 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="profile.css">
     <link rel="stylesheet" href="courses.css">
-    <script type="module" src="auth.js"></script>
-    <script type="module" src="data-store.js"></script>
-    <script src="nav-avatar.js" defer></script>
-    <script src="courses.js" defer></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
-    <title>Courses — Talent Flow</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script type="module" src="auth.js"></script>
+    <script type="module" src="data-store.js"></script>
+    <script src="app-nav.js" defer></script>
+    <title>Talent Flow – Course Catalog</title>
 </head>
-<body data-profile-page="student">
+<body>
 
-    <div id="toast-container"></div>
+<!-- ══ NAV ══ -->
+<nav>
+    <div class="logo">
+        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"/>
+        </svg>
+        <span>Talent Flow</span>
+    </div>
 
-    <header class="topbar">
-        <span class="brand">Talent Flow</span>
-        <div class="topbar-actions">
-            <div class="avatar" style="margin-right:4px">
-                <img id="nav-avatar-img" src="" alt="Profile" style="width:36px;height:36px;border-radius:50%;object-fit:cover;border:2px solid #e2e8f0;display:block;">
-            </div>
-            <span class="role-badge" id="roleBadge">Student</span>
-            <a href="student-profile.html" class="btn-link">My Profile</a>
-            <button type="button" class="btn-link" id="logoutBtn">Log Out</button>
+    <div class="nav-center">
+        <div class="breadcrumb">
+            <span class="bc-root">Dashboard</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
+            <span class="bc-current">Browse Courses</span>
         </div>
-    </header>
+    </div>
 
-    <main class="scourses-shell">
-        <div class="scourses-head">
-            <div>
-                <h1>Browse Courses</h1>
-                <p class="scourses-sub">Find your next course and start learning.</p>
-            </div>
-            <div class="scourses-search">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
-                </svg>
-                <input type="text" id="courseSearch" placeholder="Search courses or instructors…">
-            </div>
-        </div>
-
-        <div class="scourse-grid" id="courseGrid"></div>
-
-        <div class="scourses-empty" id="emptyState" hidden>
+    <div class="nav-right">
+        <!-- Notification bell -->
+        <button class="nav-icon-btn notif-btn" id="notifBtn" aria-label="Notifications">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M6 20.25h12m-7.5-3v3m3-3v3m-10.125-3h17.25c.621 0 1.125-.504 1.125-1.125V4.875c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125Z" />
+                <path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0"/>
             </svg>
-            <p id="emptyStateText">No published courses yet — check back soon.</p>
-        </div>
-    </main>
+            <span class="notif-badge" id="notifBadge" data-count="0">0</span>
+        </button>
 
+        <!-- Notification dropdown -->
+        <div class="notif-panel" id="notifPanel">
+            <div class="np-header">
+                <h4>Notifications</h4>
+                <button class="np-clear" id="clearNotifs">Mark all read</button>
+            </div>
+            <div class="np-list" id="notifList">
+                <p class="np-empty">No notifications yet</p>
+            </div>
+        </div>
+
+        <div class="avatar-wrap" id="avatarBtn">
+            <img src="" alt="Student" id="nav-avatar-img">
+            <div class="online-dot"></div>
+        </div>
+        <div class="profile-popup" id="profilePopup">
+            <div class="pp-header">
+                <img src="" alt="Student">
+                <div>
+                    <p class="pp-name"></p>
+                    <p class="pp-role">Student</p>
+                </div>
+            </div>
+            <div class="pp-divider"></div>
+            <a href="student-profile.html" class="pp-item">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                Profile
+            </a>
+            <a href="courses.html" class="pp-item">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M6 20.25h12m-7.5-3v3m3-3v3m-10.125-3h17.25c.621 0 1.125-.504 1.125-1.125V4.875c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125Z"/></svg>
+                My Courses
+            </a>
+            <a href="settings.html" class="pp-item">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75a4.5 4.5 0 0 1-4.884 4.484c-1.076-.091-2.264.071-2.95.904l-7.152 8.684a2.548 2.548 0 1 1-3.586-3.586l8.684-7.152c.833-.686.995-1.874.904-2.95a4.5 4.5 0 0 1 6.336-4.486l-3.276 3.276a3.004 3.004 0 0 0 2.25 2.25l3.276-3.276c.256.565.398 1.192.398 1.852Z"/></svg>
+                Settings
+            </a>
+            <div class="pp-divider"></div>
+            <a href="#" class="pp-item" id="logoutBtn">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15M12 9l-3 3m0 0 3 3m-3-3h12.75"/></svg>
+                Log Out
+            </a>
+        </div>
+    </div>
+
+    <button class="hamburger-btn" id="hamburgerBtn">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M4 6h16M4 12h16M4 18h16"/>
+        </svg>
+    </button>
+</nav>
+
+<!-- ══ SIDEBAR ══ -->
+<aside class="sidebar" id="sidebar">
+    <a href="student-dashboard.html" class="sidebar-link" data-tip="Dashboard">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+    </a>
+    <a href="courses.html" class="sidebar-link active" data-tip="Courses">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6 20.25h12m-7.5-3v3m3-3v3m-10.125-3h17.25c.621 0 1.125-.504 1.125-1.125V4.875c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125Z"/>
+        </svg>
+    </a>
+    <a href="student-assignment.html" class="sidebar-link" data-tip="Assignments">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25M9 16.5v.75m3-3v3M15 12v5.25m-4.5-15H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/>
+        </svg>
+    </a>
+    <a href="settings.html" class="sidebar-link" data-tip="Settings">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M21.75 6.75a4.5 4.5 0 0 1-4.884 4.484c-1.076-.091-2.264.071-2.95.904l-7.152 8.684a2.548 2.548 0 1 1-3.586-3.586l8.684-7.152c.833-.686.995-1.874.904-2.95a4.5 4.5 0 0 1 6.336-4.486l-3.276 3.276a3.004 3.004 0 0 0 2.25 2.25l3.276-3.276c.256.565.398 1.192.398 1.852Z"/>
+        </svg>
+    </a>
+</aside>
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+<!-- ══ MAIN CONTENT ══ -->
+<main class="content">
+
+    <!-- Page header -->
+    <div class="page-header">
+        <div>
+            <h1>Browse Courses</h1>
+            <p class="page-sub">Find your next course and start learning today</p>
+        </div>
+        <!-- Summary chips -->
+        <div class="header-chips">
+            <div class="chip chip-total" id="chipTotal">
+                <span class="chip-dot"></span>
+                <span id="chipTotalCount">0</span> Published
+            </div>
+            <div class="chip chip-enrolled" id="chipEnrolled">
+                <span class="chip-dot"></span>
+                <span id="chipEnrolledCount">0</span> Enrolled
+            </div>
+            <div class="chip chip-available" id="chipAvailable">
+                <span class="chip-dot"></span>
+                <span id="chipAvailableCount">0</span> Available
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter tabs -->
+    <div class="filter-bar">
+        <div class="tab-pills" id="filterTabs">
+            <button class="tab-pill active" data-filter="all">All Courses</button>
+            <button class="tab-pill" data-filter="available">Available</button>
+            <button class="tab-pill" data-filter="enrolled">Enrolled</button>
+        </div>
+        <div class="search-wrap">
+            <svg fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"/>
+            </svg>
+            <input type="text" id="courseSearch" placeholder="Search courses or instructors…">
+        </div>
+    </div>
+
+    <!-- Course cards grid -->
+    <div class="courses-grid" id="courseGrid"></div>
+
+    <!-- Empty state -->
+    <div class="empty-state" id="emptyState" style="display:none">
+        <svg width="64" height="64" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/>
+        </svg>
+        <p id="emptyStateText">No courses found.</p>
+    </div>
+
+</main>
+
+<!-- ══ TOAST CONTAINER ══ -->
+<div id="toastContainer"></div>
+
+<script src="courses.js" defer></script>
 </body>
 </html>
