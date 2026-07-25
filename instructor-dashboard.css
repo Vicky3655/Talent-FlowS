@@ -522,20 +522,40 @@ nav {
     .logo span { font-size: 16px; }
     .logo svg  { width: 26px; height: 26px; }
     .nav-role, .nav-center { display: none !important; }
-    
-    .hamburger-btn { display: flex !important; }
+    .hamburger-btn {
+        display: flex !important;
+    }
 
-    /* Mobile Sidebar Drawer */
+    /* Sidebar drawer slide-in */
     .sidebar {
-        position: fixed !important; top: 0 !important; left: 0 !important;
-        width: 264px !important; height: 100vh !important;
-        background: var(--blue) !important; display: flex !important;
-        flex-direction: column !important; align-items: stretch !important;
-        padding-top: 0 !important; gap: 0 !important;
+        position: fixed !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 264px !important;
+        height: 100vh !important;
+        background: var(--blue) !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: stretch !important;
+        padding-top: 0 !important;
+        gap: 0 !important;
         transform: translateX(-100%) !important;
         transition: transform 0.32s cubic-bezier(0.4, 0, 0.2, 1) !important;
         z-index: 250 !important;
     }
+
+    .sidebar.mobile-open {
+        transform: translateX(0) !important;
+        box-shadow: 10px 0 40px rgba(0, 0, 0, .22) !important;
+    }
+
+    .sidebar-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(15, 23, 42, 0.5);
+        z-index: 240;
+    }
+
     .sidebar.mobile-open { transform: translateX(0) !important; box-shadow: 10px 0 40px rgba(0,0,0,0.22) !important; }
 
     .sidebar-header {
