@@ -631,31 +631,16 @@ function initModals() {
     });
 }
 
-/* ── NAV & MOBILE DRAWER ── */
-function initNavigation() {
-    const hamburger = document.getElementById('hamburger-btn');
-    const closeBtn = document.getElementById('sb-close-btn');
-    const sidebar = document.getElementById('sidebar');
-    const overlay = document.getElementById('sidebar-overlay');
-
-    const toggleMenu = (open) => {
-        sidebar?.classList.toggle('mobile-open', open);
-        hamburger?.classList.toggle('open', open);
-        if (overlay) overlay.style.display = open ? 'block' : 'none';
-        document.body.style.overflow = open ? 'hidden' : '';
-    };
-
-    hamburger?.addEventListener('click', () => toggleMenu(!sidebar.classList.contains('mobile-open')));
-    closeBtn?.addEventListener('click', () => toggleMenu(false));
-    overlay?.addEventListener('click', () => toggleMenu(false));
-
-    // Avatar Popup
+/* ── NAV POPUPS ── */
+function initProfilePopup() {
     const avatarBtn = document.getElementById('avatarBtn');
     const popup = document.getElementById('profilePopup');
+
     avatarBtn?.addEventListener('click', (e) => {
         e.stopPropagation();
         popup?.classList.toggle('open');
     });
+
     document.addEventListener('click', () => popup?.classList.remove('open'));
 
     document.getElementById('navLogoutLink')?.addEventListener('click', (e) => {
@@ -691,7 +676,7 @@ function showToast(msg, type = 'info') {
 /* ── INIT DOM ── */
 document.addEventListener('DOMContentLoaded', async () => {
     setGreeting();
-    initNavigation();
+    initProfilePopup();
     initTabs();
     initModals();
     initWelcomeDismiss();
