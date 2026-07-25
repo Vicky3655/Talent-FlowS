@@ -6,6 +6,7 @@
     --blue-d:  #1D4ED8;
     --blue-l:  #EFF6FF;
     --green:   #16A34A;
+    --green-d: #15803D;
     --green-l: #F0FDF4;
     --orange:  #EA580C;
     --orange-l:#FFF7ED;
@@ -252,7 +253,7 @@ nav {
 .chip-enrolled { background: var(--green-l);  color: var(--green); }
 .chip-enrolled .chip-dot { background: var(--green); }
 .chip-available{ background: var(--blue-l);   color: var(--blue); }
-.chip-available.chip-dot { background: var(--blue); }
+.chip-available .chip-dot { background: var(--blue); }
 
 /* ══ FILTER BAR ══ */
 .filter-bar {
@@ -401,11 +402,123 @@ nav {
 }
 .course-btn:hover:not(:disabled) { background: var(--blue-d); }
 .course-btn:active:not(:disabled) { transform: scale(0.98); }
+
+/* Enrolled State Toggle Button */
 .course-btn.is-enrolled {
-    background: var(--green-l); color: var(--green);
-    cursor: default; font-weight: 700;
+    background: var(--green); color: white;
+    cursor: pointer;
 }
-.course-btn:disabled { opacity: 0.85; }
+.course-btn.is-enrolled:hover { background: var(--green-d); }
+.course-btn:disabled { opacity: 0.85; cursor: default; }
+
+/* ══ MODAL BASE ══ */
+.modal {
+    position: fixed; inset: 0;
+    background: rgba(15,23,42,0.5);
+    display: none; align-items: center; justify-content: center;
+    z-index: 1000; backdrop-filter: blur(4px);
+    padding: 20px;
+}
+.modal.open { display: flex; }
+
+.modal-box {
+    background: white; border-radius: 20px;
+    width: 100%; max-width: 560px;
+    padding: 28px;
+    box-shadow: 0 24px 64px rgba(0,0,0,0.18);
+    position: relative;
+    animation: modalIn 0.25s ease;
+    max-height: 90vh; overflow-y: auto;
+}
+@keyframes modalIn {
+    from { opacity: 0; transform: scale(0.96) translateY(12px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.modal-close {
+    position: absolute; top: 18px; right: 18px;
+    background: var(--slate-1); border: none;
+    width: 32px; height: 32px; border-radius: 8px;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    color: var(--slate-5); transition: background 0.15s;
+}
+.modal-close:hover { background: var(--slate-2); }
+
+.modal-header {
+    display: flex; align-items: center; gap: 14px;
+    margin-bottom: 20px;
+}
+.modal-icon {
+    width: 46px; height: 46px; border-radius: 12px;
+    background: var(--blue-l);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; color: var(--blue);
+}
+.modal-icon.files-icon { background: var(--green-l); color: var(--green); }
+
+.modal-header h2 { font-size: 18px; font-weight: 800; color: var(--slate-9); }
+.modal-sub { font-size: 13px; color: var(--slate-5); margin-top: 2px; }
+
+/* Instructor Notes Card inside Modal */
+.instructor-notes-box {
+    background: var(--slate-0); border: 1px solid var(--slate-2);
+    border-radius: 12px; padding: 16px; margin-bottom: 20px;
+}
+.in-label {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 11px; font-weight: 700; color: var(--slate-5);
+    text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px;
+}
+.in-text { font-size: 13.5px; color: var(--slate-7); line-height: 1.5; }
+
+/* Files & Resources Section */
+.files-heading {
+    font-size: 13px; font-weight: 700; color: var(--slate-9);
+    margin-bottom: 10px;
+}
+.resources-list {
+    display: flex; flex-direction: column; gap: 10px;
+    margin-bottom: 22px;
+}
+.resource-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 14px; background: white;
+    border: 1px solid var(--slate-2); border-radius: 12px;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+.resource-item:hover {
+    border-color: #BFDBFE; box-shadow: var(--shadow);
+}
+.resource-left {
+    display: flex; align-items: center; gap: 12px;
+}
+.resource-icon {
+    width: 36px; height: 36px; border-radius: 10px;
+    background: var(--blue-l); color: var(--blue);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+}
+.resource-title { font-size: 13.5px; font-weight: 600; color: var(--slate-9); }
+.resource-sub { font-size: 11.5px; color: var(--slate-4); margin-top: 2px; }
+
+.btn-open-file {
+    padding: 7px 14px; background: var(--blue-l); color: var(--blue);
+    border: none; border-radius: 8px; font-size: 12px; font-weight: 700;
+    cursor: pointer; text-decoration: none;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    transition: background 0.15s, color 0.15s;
+    display: inline-flex; align-items: center; gap: 4px;
+}
+.btn-open-file:hover { background: var(--blue); color: white; }
+
+.close-modal-btn {
+    width: 100%; padding: 12px;
+    background: var(--slate-1); color: var(--slate-7); border: none;
+    border-radius: 12px; font-size: 14px; font-weight: 700;
+    cursor: pointer; font-family: 'Plus Jakarta Sans', sans-serif;
+    transition: background 0.15s;
+}
+.close-modal-btn:hover { background: var(--slate-2); }
 
 /* ══ EMPTY STATE ══ */
 .empty-state {
@@ -526,6 +639,9 @@ nav {
     .search-wrap { min-width: unset; width: 100%; }
 
     .courses-grid { grid-template-columns: 1fr; gap: 14px; }
+
+    .modal { padding: 12px; align-items: flex-end; }
+    .modal-box { border-radius: 20px 20px 16px 16px; padding: 22px 18px 28px; max-height: 85vh; }
 
     #toastContainer { bottom: 78px; right: 12px; left: 12px; }
     .toast { min-width: unset; width: 100%; }
