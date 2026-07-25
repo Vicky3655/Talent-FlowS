@@ -1,12 +1,8 @@
-/* ═══════════════════════════════════════════
+/* ============================================================
    TALENT FLOW — Instructor Dashboard
    instructor-dashboard.js
-═══════════════════════════════════════════ */
+   ============================================================ */
 
-// auth.js is an ES module fetching an external dependency, so there's
-// no hard guarantee window.TalentFlowAuth exists the instant this
-// script's DOMContentLoaded callback fires. Poll briefly instead of
-// checking once and leaving the whole dashboard stuck on zeros.
 function waitForTalentFlowAuth(timeoutMs = 8000) {
     if (window.TalentFlowAuth) return Promise.resolve(window.TalentFlowAuth);
     return new Promise((resolve) => {
@@ -24,7 +20,7 @@ function waitForTalentFlowAuth(timeoutMs = 8000) {
 }
 
 function escapeHtml(str) {
-    return String(str)
+    return String(str || '')
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
@@ -32,7 +28,7 @@ function escapeHtml(str) {
         .replace(/'/g, '&#39;');
 }
 
-// ── STATE (populated from Supabase once auth resolves — see init()) ──
+/* ── STATE ── */
 const STATS = {
     courses: 0,
     students: 0,
@@ -46,18 +42,11 @@ let ASSIGNMENTS = [];
 let STUDENTS = [];
 let GIVEN_ASSIGNMENTS = [];
 
-const SUBMISSIONS = {
-    pending: [],
-    graded: []
-};
-
+const SUBMISSIONS = { pending: [], graded: [] };
 const GRADING_ACTIVITY = [0, 0, 0, 0, 0, 0, 0];
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const TODAY_IDX = (new Date().getDay() + 6) % 7;
 
-// Relabelled to metrics the schema can actually back — the original
-// "Attendance / Quizzes / Forum Activity" aren't tracked anywhere, so
-// showing numbers for them would just be invented.
 const CLASS_ENGAGEMENT = {
     labels: ['On-Time Submissions', 'Grading Progress', 'Avg. Score', 'Published Courses', 'Published Assignments'],
     scores: [0, 0, 0, 0, 0],
@@ -66,8 +55,9 @@ const CLASS_ENGAGEMENT = {
 
 let GRADING_SCHEDULE = [];
 let currentInstructorId = null;
+let activeSubmissionsTab = 'pending';
 
-// ── NUMERICAL ANIMATION HELPER ─────────────
+/* ── NUMERICAL ANIMATION HELPER ── */
 function animateNumber(el, target, suffix = '', duration = 800) {
     if (!el) return;
     const start = performance.now();
@@ -80,7 +70,7 @@ function animateNumber(el, target, suffix = '', duration = 800) {
     requestAnimationFrame(step);
 }
 
-// ── SPARKLINE DRAWER ───────────────────────
+/* ── SPARKLINE DRAWER ── */
 function drawSparkline(canvasId, points, color = '#2563EB') {
     const canvas = document.getElementById(canvasId);
     if (!canvas) return;
@@ -96,7 +86,7 @@ function drawSparkline(canvasId, points, color = '#2563EB') {
     const ys = points.map(v => H - pad - ((v - min) / range) * (H - pad * 2));
 
     const grad = ctx.createLinearGradient(0, 0, 0, H);
-    grad.addColorStop(0, color + '55');
+    grad.addColorStop(0, color + '44');
     grad.addColorStop(1, color + '00');
 
     ctx.beginPath();
@@ -108,8 +98,7 @@ function drawSparkline(canvasId, points, color = '#2563EB') {
     ctx.lineTo(xs[xs.length - 1], H);
     ctx.lineTo(xs[0], H);
     ctx.closePath();
-    ctx.fillStyle = grad;
-    ctx.fill();
+    ctx.fillStyle = grad; ctx.fill();
 
     ctx.beginPath();
     ctx.moveTo(xs[0], ys[0]);
@@ -117,20 +106,17 @@ function drawSparkline(canvasId, points, color = '#2563EB') {
         const cx = (xs[i - 1] + xs[i]) / 2;
         ctx.bezierCurveTo(cx, ys[i - 1], cx, ys[i], xs[i], ys[i]);
     }
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 2;
-    ctx.stroke();
+    ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke();
 }
 
-// ── DATA LOADING + DERIVATION ──────────────
+/* ── DATA PROCESSING ── */
 function studentInfo(id) {
-    return STUDENTS.find(s => s.id === id) || { id, name: 'Unknown Student', avatar: '' };
+    return STUDENTS.find(s => s.id === id) || { id, name: 'Student', avatar: '' };
 }
 
 function formatShortDate(iso) {
     if (!iso) return '';
-    const d = new Date(iso);
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
 function computeDerivedData() {
@@ -162,7 +148,7 @@ function computeDerivedData() {
                     maxScore: max,
                     studentName: studentInfo(s.studentId).name,
                     dueLabel: formatShortDate(s.submittedAt),
-                    studentNote: s.submissionText ? s.submissionText.slice(0, 160) : '',
+                    studentNote: s.submissionText || s.link ? (s.link || s.submissionText) : '',
                 });
             } else {
                 gradedSum += (s.score / max) * 100;
@@ -205,7 +191,7 @@ function computeDerivedData() {
             id: a.id,
             title: a.title,
             course: a.course,
-            status: a.status, // 'draft' | 'published' | 'closed'
+            status: a.status || 'published',
             subCount: (a.submissions || []).filter(s => s.submittedAt).length,
         }));
 
@@ -228,16 +214,13 @@ function computeDerivedData() {
 
 async function loadData() {
     const [courses, assignments, students] = await Promise.all([
-        TalentFlowData.getCourses(currentInstructorId),
-        TalentFlowData.getAssignments(currentInstructorId),
-        TalentFlowData.getStudentsForInstructor(currentInstructorId).catch((err) => {
-            console.error('Could not load enrolled students:', err);
-            return [];
-        }),
+        window.TalentFlowData.getCourses(currentInstructorId),
+        window.TalentFlowData.getAssignments(currentInstructorId),
+        window.TalentFlowData.getStudentsForInstructor(currentInstructorId).catch(() => []),
     ]);
-    COURSES = courses;
-    ASSIGNMENTS = assignments;
-    STUDENTS = students;
+    COURSES = courses || [];
+    ASSIGNMENTS = assignments || [];
+    STUDENTS = students || [];
     computeDerivedData();
 }
 
@@ -245,7 +228,7 @@ function populateCourseSelect() {
     const sel = document.getElementById('newCourse');
     if (!sel) return;
     if (!COURSES.length) {
-        sel.innerHTML = '<option value="">Create a course first</option>';
+        sel.innerHTML = '<option value="">Create a course first in Courses page</option>';
         return;
     }
     sel.innerHTML = COURSES.map(c => `<option value="${escapeHtml(c.title)}">${escapeHtml(c.title)}</option>`).join('');
@@ -256,7 +239,7 @@ async function refreshAndRender() {
         await loadData();
     } catch (err) {
         console.error('Loading dashboard data failed:', err);
-        showToast('Could not load your latest data — check your connection.');
+        showToast('Could not load latest data — check connection.');
     }
     updateUIElements();
     renderGivenAssignments();
@@ -267,7 +250,7 @@ async function refreshAndRender() {
     populateCourseSelect();
 }
 
-// ── GREETINGS ──────────────────────────────
+/* ── GREETINGS ── */
 function setGreeting() {
     const hours = new Date().getHours();
     const greetingEl = document.getElementById('greeting');
@@ -277,21 +260,19 @@ function setGreeting() {
         else greetingEl.textContent = 'Good evening,';
     }
 
-    // Fast local paint from the shared instructor profile bridge —
-    // nav-avatar.js reconciles this against Supabase a moment later.
     const wbNameEl = document.getElementById('wbName');
     if (wbNameEl) {
         try {
             const raw = localStorage.getItem('tf_instructor_profile');
             const profile = raw ? JSON.parse(raw) : null;
-            wbNameEl.textContent = profile?.fullName ? `${profile.fullName} 👋` : '';
+            wbNameEl.textContent = profile?.fullName ? `${profile.fullName} 👋` : 'Instructor 👋';
         } catch (err) {
-            wbNameEl.textContent = '';
+            wbNameEl.textContent = 'Instructor 👋';
         }
     }
 }
 
-// ── CORE UI UPDATER ────────────────────────
+/* ── UI UPDATERS ── */
 function updateUIElements() {
     animateNumber(document.getElementById('statCourses'), STATS.courses);
     animateNumber(document.getElementById('statStudents'), STATS.students);
@@ -304,59 +285,44 @@ function updateUIElements() {
     const bannerPendingCount = document.getElementById('bannerPendingCount');
     if (bannerPendingCount) bannerPendingCount.textContent = STATS.pending;
 
-    // No historical time-series is tracked anywhere in the schema yet,
-    // so these mini-sparklines reflect today's real totals rather than
-    // an invented trend line.
     drawSparkline('sparkCourses', Array(5).fill(STATS.courses || 0.1), '#2563EB');
     drawSparkline('sparkStudents', Array(5).fill(STATS.students || 0.1), '#16A34A');
     drawSparkline('sparkPending', Array(5).fill(STATS.pending || 0.1), '#EA580C');
     drawSparkline('sparkGrade', Array(5).fill(STATS.classAverage || 0.1), '#7C3AED');
 }
 
-// ── RENDER GIVEN ASSIGNMENTS ───────────────
+/* ── RENDER GIVEN ASSIGNMENTS ── */
 function renderGivenAssignments() {
     const list = document.getElementById('givenAssignmentsList');
     if (!list) return;
 
     if (GIVEN_ASSIGNMENTS.length === 0) {
-        list.innerHTML = `
-            <div class="empty-state">
-                <p>No assignments created yet.</p>
-            </div>`;
+        list.innerHTML = `<p style="font-size:13px;color:var(--slate-4);text-align:center;padding:16px 0;">No assignments created yet.</p>`;
         return;
     }
 
-    const statusLabel = { draft: 'Draft', published: 'Published', closed: 'Closed' };
     list.innerHTML = GIVEN_ASSIGNMENTS.map((a, i) => `
-        <div class="assign-item" style="animation-delay:${i * 60}ms; align-items: center;">
+        <div class="assign-item" style="animation-delay:${i * 50}ms">
             <div class="ai-status-dot ${a.status === 'draft' ? 'pending' : 'submitted'}"></div>
-            <div class="ai-body" style="margin-right: 12px;">
-                <p class="ai-title" style="margin-bottom: 2px;">${escapeHtml(a.title)}</p>
+            <div class="ai-body">
+                <p class="ai-title">${escapeHtml(a.title)}</p>
                 <p class="ai-course">${escapeHtml(a.course)}</p>
             </div>
-            <span class="badge-pill ${a.status === 'draft' ? 'blue' : 'green'}" style="margin-left: auto; flex-shrink: 0;">
+            <span class="badge-pill ${a.status === 'draft' ? 'blue' : 'green'}" style="margin-left: auto;">
                 ${a.status === 'draft' ? 'Draft' : `${a.subCount} submitted`}
             </span>
         </div>
     `).join('');
 }
 
-// ── RENDER STUDENT SUBMISSIONS ─────────────
-let activeSubmissionsTab = 'pending';
-
+/* ── RENDER STUDENT SUBMISSIONS ── */
 function renderSubmissions(tab) {
     const list = document.getElementById('submissionsList');
     if (!list) return;
 
     const items = SUBMISSIONS[tab];
     if (!items || items.length === 0) {
-        list.innerHTML = `
-            <div class="empty-state">
-                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" style="width:40px; height:40px; opacity:0.3; margin-bottom:8px;">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
-                </svg>
-                <p>No submissions found here.</p>
-            </div>`;
+        list.innerHTML = `<p style="font-size:13px;color:var(--slate-4);text-align:center;padding:20px 0;">No submissions found.</p>`;
         return;
     }
 
@@ -370,14 +336,13 @@ function renderSubmissions(tab) {
             : `${escapeHtml(s.studentName)} · Graded`;
 
         return `
-            <div class="assign-item" style="animation-delay:${i * 50}ms">
+            <div class="assign-item" style="animation-delay:${i * 40}ms">
                 <div class="ai-status-dot ${tab === 'pending' ? 'pending' : 'graded'}"></div>
                 <div class="ai-body">
                     <p class="ai-title">${escapeHtml(s.title)}</p>
                     <p class="ai-course">${subtitle}</p>
-                    ${s.studentNote ? `<p style="font-size:11px; color:var(--slate-5); background:var(--slate-0); padding:4px 8px; border-radius:6px; margin-top:6px; font-style:italic;">"${escapeHtml(s.studentNote)}"</p>` : ''}
                 </div>
-                <div style="margin-left:auto; display:flex; align-items:center; gap:12px; flex-shrink:0;">
+                <div style="margin-left:auto; display:flex; align-items:center; gap:10px;">
                     ${gradeBadge}
                     ${actionButton}
                 </div>
@@ -397,7 +362,7 @@ function initTabs() {
     });
 }
 
-// ── GRADING ACTIVITY WEEKLY CHART ──────────
+/* ── WEEKLY CHART ── */
 function renderGradingChart() {
     const barsEl = document.getElementById('weeklyBars');
     if (!barsEl) return;
@@ -417,7 +382,7 @@ function renderGradingChart() {
         barsEl.querySelectorAll('.wc-bar').forEach(bar => {
             bar.style.height = bar.dataset.height + 'px';
         });
-    }, 300);
+    }, 250);
 
     const total = GRADING_ACTIVITY.reduce((a, b) => a + b, 0);
     const avg = (total / (GRADING_ACTIVITY.filter(v => v > 0).length || 1)).toFixed(1);
@@ -428,14 +393,14 @@ function renderGradingChart() {
     document.getElementById('bestGradingDay').textContent = total > 0 ? DAYS[bestIdx] : '—';
 }
 
-// ── COHORT RADAR CANVAS ────────────────────
+/* ── COHORT RADAR ── */
 function renderRadar() {
     const canvas = document.getElementById('radarCanvas');
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     const W = canvas.width, H = canvas.height;
     const cx = W / 2, cy = H / 2;
-    const R = 82;
+    const R = 80;
     const labels = CLASS_ENGAGEMENT.labels;
     const scores = CLASS_ENGAGEMENT.scores.map(s => s / 100);
     const n = labels.length;
@@ -448,68 +413,25 @@ function renderRadar() {
 
     ctx.clearRect(0, 0, W, H);
 
-    let frame = 0;
-    const totalFrames = 40;
-
-    function drawFrame() {
-        const t = Math.min(frame / totalFrames, 1);
-        const ease = 1 - Math.pow(1 - t, 3);
-        ctx.clearRect(0, 0, W, H);
-
-        [0.25, 0.5, 0.75, 1].forEach(frac => {
-            ctx.beginPath();
-            for (let i = 0; i < n; i++) {
-                const [x, y] = pt(i, R * frac);
-                i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-            }
-            ctx.closePath();
-            ctx.strokeStyle = frac === 1 ? '#E2E8F0' : '#F1F5F9';
-            ctx.lineWidth = 1;
-            ctx.stroke();
-        });
-
-        for (let i = 0; i < n; i++) {
-            const [x, y] = pt(i, R);
-            ctx.beginPath();
-            ctx.moveTo(cx, cy);
-            ctx.lineTo(x, y);
-            ctx.strokeStyle = '#E2E8F0';
-            ctx.lineWidth = 1;
-            ctx.stroke();
-        }
-
+    [0.25, 0.5, 0.75, 1].forEach(frac => {
         ctx.beginPath();
         for (let i = 0; i < n; i++) {
-            const [x, y] = pt(i, R * scores[i] * ease);
+            const [x, y] = pt(i, R * frac);
             i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
         }
         ctx.closePath();
-        ctx.fillStyle = color + '22';
-        ctx.fill();
-        ctx.strokeStyle = color;
-        ctx.lineWidth = 2;
-        ctx.stroke();
+        ctx.strokeStyle = frac === 1 ? '#E2E8F0' : '#F1F5F9';
+        ctx.lineWidth = 1; ctx.stroke();
+    });
 
-        for (let i = 0; i < n; i++) {
-            const [x, y] = pt(i, R * scores[i] * ease);
-            ctx.beginPath();
-            ctx.arc(x, y, 4, 0, Math.PI * 2);
-            ctx.fillStyle = color;
-            ctx.fill();
-        }
-
-        for (let i = 0; i < n; i++) {
-            const [x, y] = pt(i, R + 15);
-            ctx.font = '600 11px Plus Jakarta Sans, sans-serif';
-            ctx.fillStyle = '#64748B';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(labels[i], x, y);
-        }
-
-        if (frame < totalFrames) { frame++; requestAnimationFrame(drawFrame); }
+    ctx.beginPath();
+    for (let i = 0; i < n; i++) {
+        const [x, y] = pt(i, R * scores[i]);
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
     }
-    drawFrame();
+    ctx.closePath();
+    ctx.fillStyle = color + '22'; ctx.fill();
+    ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke();
 
     const legend = document.getElementById('radarLegend');
     if (legend) {
@@ -523,7 +445,7 @@ function renderRadar() {
     }
 }
 
-// ── GRADING DEADLINES SCHEDULE ─────────────
+/* ── DEADLINES SCHEDULE ── */
 function renderSchedule() {
     const list = document.getElementById('deadlineList');
     const badge = document.getElementById('deadlineCount');
@@ -532,20 +454,20 @@ function renderSchedule() {
     if (badge) badge.textContent = GRADING_SCHEDULE.length;
 
     if (!GRADING_SCHEDULE.length) {
-        list.innerHTML = `<p style="text-align:center;color:var(--slate-4);padding:20px;font-size:13px">Nothing waiting on grading right now.</p>`;
+        list.innerHTML = `<p style="text-align:center;color:var(--slate-4);padding:16px;font-size:13px">No deadlines right now.</p>`;
         return;
     }
 
     const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     const now = new Date();
 
-    list.innerHTML = GRADING_SCHEDULE.map((s, i) => {
+    list.innerHTML = GRADING_SCHEDULE.map((s) => {
         const daysLeft = Math.ceil((s.date - now) / 86400000);
         const urgency = daysLeft <= 2 ? 'urgent' : 'normal';
         const label = daysLeft === 1 ? 'Tomorrow' : daysLeft <= 0 ? 'Overdue' : `${daysLeft}d deadline`;
 
         return `
-            <div class="dl-item" style="animation-delay:${i * 60}ms">
+            <div class="dl-item">
                 <div class="dl-date-box ${urgency}">
                     <span class="dl-day">${s.date.getDate()}</span>
                     <span class="dl-month">${MONTHS[s.date.getMonth()]}</span>
@@ -559,7 +481,7 @@ function renderSchedule() {
     }).join('');
 }
 
-// ── INTERACTIVE GRADING & CREATION MODALS ──
+/* ── MODAL INTERACTION ── */
 let targetGradingId = null;
 
 function openGradeModal(id) {
@@ -571,18 +493,17 @@ function openGradeModal(id) {
 
     const filePreview = document.getElementById('studentFilePreview');
     filePreview.innerHTML = submission.studentNote
-        ? `<span style="font-size:13px;color:var(--slate-7);line-height:1.5">${escapeHtml(submission.studentNote)}</span>`
-        : `<span style="font-size:13px;color:var(--slate-4);font-style:italic">No written note from the student.</span>`;
+        ? `<span style="font-size:13px;color:var(--slate-7)">${escapeHtml(submission.studentNote)}</span>`
+        : `<span style="font-size:13px;color:var(--slate-4);font-style:italic">No written note attached.</span>`;
 
     const scoreInput = document.getElementById('gradeValue');
     scoreInput.max = submission.maxScore;
-    scoreInput.placeholder = `Enter grade (out of ${submission.maxScore})`;
+    scoreInput.placeholder = `Grade (out of ${submission.maxScore})`;
     scoreInput.value = '';
     document.getElementById('gradeFeedback').value = '';
     document.getElementById('gradeModal').classList.add('open');
 }
 
-// Make openGradeModal accessible globally to onclick attributes
 window.openGradeModal = openGradeModal;
 
 function initModals() {
@@ -595,13 +516,13 @@ function initModals() {
     const closeCreate = document.getElementById('closeCreateModal');
     const confirmCreate = document.getElementById('confirmCreateAssignment');
 
-    [gradeModal, addAssignmentModal].forEach(modal => {
-        modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('open'); });
+    [gradeModal, addAssignmentModal].forEach(m => {
+        m?.addEventListener('click', e => { if (e.target === m) m.classList.remove('open'); });
     });
 
-    closeGrade.addEventListener('click', () => gradeModal.classList.remove('open'));
+    closeGrade?.addEventListener('click', () => gradeModal.classList.remove('open'));
 
-    confirmGrade.addEventListener('click', async () => {
+    confirmGrade?.addEventListener('click', async () => {
         const submission = SUBMISSIONS.pending.find(s => s.id === targetGradingId);
         if (!submission) return;
 
@@ -609,7 +530,7 @@ function initModals() {
         const score = parseInt(scoreInput.value);
 
         if (isNaN(score) || score < 0 || score > submission.maxScore) {
-            showToast(`Please enter a valid grade between 0 and ${submission.maxScore}.`);
+            showToast(`Please enter a grade between 0 and ${submission.maxScore}.`, 'warning');
             return;
         }
 
@@ -623,7 +544,7 @@ function initModals() {
 
         confirmGrade.disabled = true;
         try {
-            await TalentFlowData.updateSubmissions(assignment.id, updatedSubmissions);
+            await window.TalentFlowData.updateSubmissions(assignment.id, updatedSubmissions);
             assignment.submissions = updatedSubmissions;
             computeDerivedData();
             updateUIElements();
@@ -632,47 +553,53 @@ function initModals() {
             renderGradingChart();
             renderRadar();
             renderSchedule();
-            showToast(`Submission graded successfully! Score: ${score}/${submission.maxScore} ✅`);
+            showToast(`Graded successfully! Score: ${score}/${submission.maxScore}`, 'success');
             gradeModal.classList.remove('open');
             targetGradingId = null;
         } catch (err) {
             console.error('Saving grade failed:', err);
-            showToast('Could not save this grade — please try again.');
+            showToast('Could not save grade — please try again.', 'error');
         } finally {
             confirmGrade.disabled = false;
         }
     });
 
-    // Handle Creating New Assignments
-    createBtn.addEventListener('click', () => {
+    // Create Assignment
+    createBtn?.addEventListener('click', () => {
         document.getElementById('newTitle').value = '';
+        document.getElementById('newInstructions').value = '';
         document.getElementById('newDueDate').value = '';
         populateCourseSelect();
         addAssignmentModal.classList.add('open');
     });
 
-    closeCreate.addEventListener('click', () => addAssignmentModal.classList.remove('open'));
+    closeCreate?.addEventListener('click', () => addAssignmentModal.classList.remove('open'));
 
-    confirmCreate.addEventListener('click', async () => {
+    confirmCreate?.addEventListener('click', async () => {
         const title = document.getElementById('newTitle').value.trim();
         const course = document.getElementById('newCourse').value;
-        const rawDate = document.getElementById('newDueDate').value;
+        const instructions = document.getElementById('newInstructions').value.trim();
+        const dueDate = document.getElementById('newDueDate').value;
+        const maxScore = parseInt(document.getElementById('newMaxScore').value) || 100;
+        const status = document.getElementById('newStatus').value;
 
-        if (!title || !course || !rawDate) {
-            showToast('Please complete all assignment fields.');
+        if (!title || !course || !dueDate) {
+            showToast('Please fill in Title, Course, and Due Date.', 'warning');
             return;
         }
 
         confirmCreate.disabled = true;
+        confirmCreate.textContent = 'Publishing…';
+
         try {
-            const newId = await TalentFlowData.saveAssignment(currentInstructorId, {
+            const newId = await window.TalentFlowData.saveAssignment(currentInstructorId, {
                 title,
                 course,
-                instructions: '',
-                dueDate: rawDate,
-                maxScore: 100,
+                instructions,
+                dueDate,
+                maxScore,
                 assignTo: 'all',
-                status: 'published',
+                status
             });
 
             ASSIGNMENTS.push({
@@ -680,12 +607,12 @@ function initModals() {
                 instructorId: currentInstructorId,
                 title,
                 course,
-                instructions: '',
-                dueDate: rawDate,
-                maxScore: 100,
+                instructions,
+                dueDate,
+                maxScore,
                 assignTo: 'all',
-                status: 'published',
-                submissions: [],
+                status,
+                submissions: []
             });
 
             computeDerivedData();
@@ -693,122 +620,91 @@ function initModals() {
             renderGivenAssignments();
             renderSchedule();
             addAssignmentModal.classList.remove('open');
-            showToast('New assignment published successfully! 🚀');
+            showToast(`Assignment "${title}" created!`, 'success');
         } catch (err) {
             console.error('Creating assignment failed:', err);
-            showToast('Could not create the assignment — please try again.');
+            showToast('Could not create assignment. Try again.', 'error');
         } finally {
             confirmCreate.disabled = false;
+            confirmCreate.textContent = 'Publish Assignment';
         }
     });
 }
 
-// ── TOAST NOTIFICATION ─────────────────────
-function showToast(msg) {
-    const toast = document.createElement('div');
-    toast.textContent = msg;
-    Object.assign(toast.style, {
-        position: 'fixed',
-        bottom: '28px',
-        right: '28px',
-        background: '#0F172A',
-        color: 'white',
-        padding: '12px 22px',
-        borderRadius: '12px',
-        fontSize: '14px',
-        fontWeight: '600',
-        fontFamily: 'Plus Jakarta Sans, sans-serif',
-        boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
-        zIndex: '9999',
-        animation: 'toastIn 0.3s ease',
-        opacity: '1',
-        transition: 'opacity 0.4s'
-    });
+/* ── NAV & MOBILE DRAWER ── */
+function initNavigation() {
+    const hamburger = document.getElementById('hamburger-btn');
+    const closeBtn = document.getElementById('sb-close-btn');
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebar-overlay');
 
-    if (!document.getElementById('toast-style')) {
-        const style = document.createElement('style');
-        style.id = 'toast-style';
-        style.textContent = `@keyframes toastIn {
-            from { opacity:0; transform:translateY(12px); }
-            to { opacity:1; transform:translateY(0); }
-        }`;
-        document.head.appendChild(style);
-    }
+    const toggleMenu = (open) => {
+        sidebar?.classList.toggle('mobile-open', open);
+        hamburger?.classList.toggle('open', open);
+        if (overlay) overlay.style.display = open ? 'block' : 'none';
+        document.body.style.overflow = open ? 'hidden' : '';
+    };
 
-    document.body.appendChild(toast);
-    setTimeout(() => {
-        toast.style.opacity = '0';
-        setTimeout(() => toast.remove(), 400);
-    }, 3000);
-}
+    hamburger?.addEventListener('click', () => toggleMenu(!sidebar.classList.contains('mobile-open')));
+    closeBtn?.addEventListener('click', () => toggleMenu(false));
+    overlay?.addEventListener('click', () => toggleMenu(false));
 
-// ── GENERAL NAVIGATION & MENU HANDLERS ─────
-function initNavbar() {
+    // Avatar Popup
     const avatarBtn = document.getElementById('avatarBtn');
     const popup = document.getElementById('profilePopup');
-    if (avatarBtn && popup) {
-        avatarBtn.addEventListener('click', e => {
-            e.stopPropagation();
-            popup.classList.toggle('open');
-        });
-        document.addEventListener('click', () => popup.classList.remove('open'));
-    }
+    avatarBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        popup?.classList.toggle('open');
+    });
+    document.addEventListener('click', () => popup?.classList.remove('open'));
 
-    const notifBtn = document.getElementById('notifBtn');
-    if (notifBtn) {
-        notifBtn.addEventListener('click', () => {
-            showToast('No unread alerts.');
-            const badge = document.getElementById('notifBadge');
-            if (badge) badge.remove();
-        });
-    }
-
-    const logoutLink = document.getElementById('navLogoutLink');
-    if (logoutLink) {
-        logoutLink.addEventListener('click', (e) => {
-            e.preventDefault();
-            if (window.TalentFlowAuth) window.TalentFlowAuth.logOut();
-        });
-    }
-
-    // Mobile hamburger/sidebar/overlay are handled by mobile-nav.js
-    // (also loaded on this page).
+    document.getElementById('navLogoutLink')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        window.TalentFlowAuth?.logOut();
+    });
 }
 
-// ── WELCOME BANNER DISMISSAL ───────────────
+/* ── WELCOME BANNER DISMISS ── */
 function initWelcomeDismiss() {
     const btn = document.getElementById('dismissBanner');
     const banner = document.getElementById('welcomeBanner');
-    if (!btn || !banner) return;
-    btn.addEventListener('click', () => {
-        banner.style.transition = 'opacity 0.3s, transform 0.3s, max-height 0.4s, margin 0.4s, padding 0.4s';
-        banner.style.opacity = '0';
-        banner.style.transform = 'translateY(-8px)';
-        banner.style.maxHeight = '0';
-        banner.style.marginBottom = '0';
-        banner.style.paddingTop = '0';
-        banner.style.paddingBottom = '0';
-        setTimeout(() => banner.remove(), 420);
+    btn?.addEventListener('click', () => {
+        if (banner) banner.style.display = 'none';
     });
 }
 
-// ── INITIALIZE APPLICATION ─────────────────
+/* ── TOAST ── */
+function showToast(msg, type = 'info') {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+
+    const t = document.createElement('div');
+    t.className = 'toast';
+    t.innerHTML = `<span>${msg}</span>`;
+    container.appendChild(t);
+
+    setTimeout(() => {
+        t.remove();
+    }, 3500);
+}
+
+/* ── INIT DOM ── */
 document.addEventListener('DOMContentLoaded', async () => {
     setGreeting();
+    initNavigation();
     initTabs();
     initModals();
-    initNavbar();
     initWelcomeDismiss();
 
     const auth = await waitForTalentFlowAuth();
     if (!auth) {
-        showToast("Couldn't connect — please refresh the page.");
+        showToast('Could not load auth provider', 'error');
         return;
     }
 
     let user;
     try {
-        user = await auth.requireAuth(); // redirects to login.html if signed out
+        user = await auth.requireAuth();
     } catch (err) {
         console.error('Auth check failed:', err);
         return;
