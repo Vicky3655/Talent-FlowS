@@ -1,97 +1,209 @@
 /* ============================================================
-   TALENT FLOW  |  student-courses.js
+   TALENT FLOW  |  courses.js
    ------------------------------------------------------------
-   The student-facing course catalog: every course an instructor
-   has published, pulled live from Firestore via
-   TalentFlowData.getPublishedCourses() (see data-store.js),
-   which already joins in each instructor's public name/photo
-   from the publicProfiles collection.
+   Student Course Catalog logic updated with modern design UI,
+   tab filtering, auth waiting, and toast notifications.
    ============================================================ */
 
+function waitForTalentFlowAuth(timeoutMs = 8000) {
+    if (window.TalentFlowAuth) return Promise.resolve(window.TalentFlowAuth);
+    return new Promise((resolve) => {
+        const start = Date.now();
+        const timer = setInterval(() => {
+            if (window.TalentFlowAuth) {
+                clearInterval(timer);
+                resolve(window.TalentFlowAuth);
+            } else if (Date.now() - start > timeoutMs) {
+                clearInterval(timer);
+                resolve(null);
+            }
+        }, 50);
+    });
+}
+
+/* ── STATE ── */
 let allCourses = [];
-let myEnrollments = new Set(); // course ids the student is already in
+let myEnrollments = new Set();
 let searchTerm = '';
+let activeFilter = 'all';
 
 document.addEventListener('DOMContentLoaded', async () => {
-    const auth = window.TalentFlowAuth;
-    if (!auth) return;
+    setupNavPopups();
+    initFiltersAndSearch();
 
-    await auth.requireAuth(); // redirects to login.html if signed out
+    const auth = await waitForTalentFlowAuth();
+    if (!auth) {
+        showToast('Could not load auth provider', 'error');
+        return;
+    }
+
+    try {
+        await auth.requireAuth(); // Redirects to login if missing
+    } catch (err) {
+        console.error('Auth verification failed:', err);
+        return;
+    }
 
     try {
         const [courses, enrollments] = await Promise.all([
             window.TalentFlowData.getPublishedCourses(),
             auth.listMyEnrollments().catch(() => []),
         ]);
-        allCourses = courses;
-        myEnrollments = new Set(enrollments.map(e => e.courseId));
+        allCourses = courses || [];
+        myEnrollments = new Set((enrollments || []).map(e => e.courseId));
     } catch (err) {
         console.error('Loading the course catalog failed:', err);
-        showToast('Could not load courses', 'Check your connection and refresh.', 'error');
+        showToast('Could not load courses. Check your connection.', 'error');
     }
 
+    updateSummaryChips();
     render();
-    initSearch();
 
-    document.getElementById('logoutBtn')?.addEventListener('click', () => auth.logOut());
+    document.getElementById('logoutBtn')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        auth.logOut();
+    });
 });
 
-function initSearch() {
+/* ── NAV & POPUPS ── */
+function setupNavPopups() {
+    const avatarBtn = document.getElementById('avatarBtn');
+    const profilePopup = document.getElementById('profilePopup');
+    const notifBtn = document.getElementById('notifBtn');
+    const notifPanel = document.getElementById('notifPanel');
+
+    avatarBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        profilePopup?.classList.toggle('open');
+        notifPanel?.classList.remove('open');
+    });
+
+    notifBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        notifPanel?.classList.toggle('open');
+        profilePopup?.classList.remove('open');
+    });
+
+    document.addEventListener('click', () => {
+        profilePopup?.classList.remove('open');
+        notifPanel?.classList.remove('open');
+    });
+
+    document.getElementById('clearNotifs')?.addEventListener('click', () => {
+        const notifList = document.getElementById('notifList');
+        const badge = document.getElementById('notifBadge');
+        if (notifList) notifList.innerHTML = '<p class="np-empty">No notifications yet</p>';
+        if (badge) {
+            badge.textContent = '0';
+            badge.setAttribute('data-count', '0');
+        }
+    });
+}
+
+/* ── FILTERS & SEARCH ── */
+function initFiltersAndSearch() {
     const input = document.getElementById('courseSearch');
     input?.addEventListener('input', (e) => {
         searchTerm = e.target.value.toLowerCase().trim();
         render();
     });
+
+    const filterTabs = document.getElementById('filterTabs');
+    filterTabs?.addEventListener('click', (e) => {
+        const pill = e.target.closest('.tab-pill');
+        if (!pill) return;
+
+        filterTabs.querySelectorAll('.tab-pill').forEach(btn => btn.classList.remove('active'));
+        pill.classList.add('active');
+
+        activeFilter = pill.dataset.filter || 'all';
+        render();
+    });
 }
 
+/* ── SUMMARY CHIPS ── */
+function updateSummaryChips() {
+    const totalEl = document.getElementById('chipTotalCount');
+    const enrolledEl = document.getElementById('chipEnrolledCount');
+    const availableEl = document.getElementById('chipAvailableCount');
+
+    const total = allCourses.length;
+    const enrolled = allCourses.filter(c => myEnrollments.has(c.id)).length;
+    const available = total - enrolled;
+
+    if (totalEl) totalEl.textContent = total;
+    if (enrolledEl) enrolledEl.textContent = enrolled;
+    if (availableEl) availableEl.textContent = Math.max(0, available);
+}
+
+/* ── RENDER COURSES ── */
 function render() {
     const grid = document.getElementById('courseGrid');
     const empty = document.getElementById('emptyState');
     const emptyText = document.getElementById('emptyStateText');
     if (!grid) return;
 
-    const list = allCourses.filter(c =>
-        !searchTerm ||
-        c.title.toLowerCase().includes(searchTerm) ||
-        (c.instructorName || '').toLowerCase().includes(searchTerm)
-    );
+    const list = allCourses.filter(c => {
+        const isEnrolled = myEnrollments.has(c.id);
+        const matchesSearch = !searchTerm ||
+            c.title.toLowerCase().includes(searchTerm) ||
+            (c.instructorName || '').toLowerCase().includes(searchTerm) ||
+            (c.desc || '').toLowerCase().includes(searchTerm);
+
+        let matchesFilter = true;
+        if (activeFilter === 'enrolled') matchesFilter = isEnrolled;
+        if (activeFilter === 'available') matchesFilter = !isEnrolled;
+
+        return matchesSearch && matchesFilter;
+    });
 
     if (!list.length) {
         grid.innerHTML = '';
-        if (empty) empty.hidden = false;
+        if (empty) empty.style.display = 'flex';
         if (emptyText) {
             emptyText.textContent = allCourses.length
-                ? 'No courses match your search.'
+                ? 'No courses match your search or selected filter.'
                 : 'No published courses yet — check back soon.';
         }
         return;
     }
-    if (empty) empty.hidden = true;
+
+    if (empty) empty.style.display = 'none';
 
     grid.innerHTML = list.map((c, i) => {
         const enrolled = myEnrollments.has(c.id);
         const avatar = c.instructorAvatar || fallbackAvatar(c.instructorName);
+        const thumbUrl = c.thumb || 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=600&q=80';
+
         return `
-        <div class="scourse-card" style="animation-delay:${i * 60}ms">
-            <div class="scourse-thumb">
-                <img src="${c.thumb}" alt="${c.alt || c.title}" onerror="this.src='https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=400&q=80'">
+        <div class="course-card" style="animation-delay:${i * 50}ms">
+            <div class="course-thumb">
+                <img src="${thumbUrl}" alt="${c.alt || c.title}" onerror="this.src='https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=600&q=80'">
+                <span class="course-badge ${enrolled ? 'is-enrolled' : ''}">${enrolled ? 'Enrolled' : 'Course'}</span>
             </div>
-            <div class="scourse-body">
-                <p class="scourse-title">${c.title}</p>
-                ${c.desc ? `<p class="scourse-desc">${c.desc}</p>` : ''}
-                <div class="scourse-meta">${c.lessons} Lesson${c.lessons !== 1 ? 's' : ''}</div>
-                <div class="scourse-instructor">
-                    <img src="${avatar}" alt="${c.instructorName}">
-                    <span>Taught by <strong>${c.instructorName}</strong></span>
+            <div class="course-body">
+                <p class="course-title">${c.title}</p>
+                ${c.desc ? `<p class="course-desc">${c.desc}</p>` : ''}
+                <div class="course-meta">
+                    <svg fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/>
+                    </svg>
+                    <span>${c.lessons || 0} Lesson${c.lessons !== 1 ? 's' : ''}</span>
                 </div>
-                <button class="scourse-btn ${enrolled ? 'is-enrolled' : ''}" data-id="${c.id}" ${enrolled ? 'disabled' : ''}>
-                    ${enrolled ? '✓ Enrolled' : 'Enroll'}
+                <div class="course-instructor">
+                    <img src="${avatar}" alt="${c.instructorName || 'Instructor'}">
+                    <div class="course-instructor-info">
+                        Instructor: <strong>${c.instructorName || 'TalentFlow Instructor'}</strong>
+                    </div>
+                </div>
+                <button class="course-btn ${enrolled ? 'is-enrolled' : ''}" data-id="${c.id}" ${enrolled ? 'disabled' : ''}>
+                    ${enrolled ? '✓ Enrolled' : 'Enroll Now'}
                 </button>
             </div>
         </div>`;
     }).join('');
 
-    grid.querySelectorAll('.scourse-btn:not(.is-enrolled)').forEach(btn => {
+    grid.querySelectorAll('.course-btn:not(.is-enrolled)').forEach(btn => {
         btn.addEventListener('click', () => enroll(btn.dataset.id, btn));
     });
 }
@@ -99,9 +211,10 @@ function render() {
 function fallbackAvatar(name) {
     const auth = window.TalentFlowAuth;
     if (auth?.initialsAvatar) return auth.initialsAvatar(name || 'T');
-    return '';
+    return 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&q=80';
 }
 
+/* ── ENROLL ACTION ── */
 async function enroll(courseId, btn) {
     const course = allCourses.find(c => c.id === courseId);
     if (!course) return;
@@ -115,31 +228,35 @@ async function enroll(courseId, btn) {
         myEnrollments.add(courseId);
         btn.textContent = '✓ Enrolled';
         btn.classList.add('is-enrolled');
-        showToast('Enrolled!', `You're in "${course.title}".`, 'success');
+        updateSummaryChips();
+        showToast(`You're in! Enrolled in "${course.title}".`, 'success');
     } catch (err) {
         console.error('Enrolling failed:', err);
         btn.disabled = false;
-        btn.textContent = 'Enroll';
-        showToast('Could not enroll', 'Please try again.', 'error');
+        btn.textContent = 'Enroll Now';
+        showToast('Could not enroll. Please try again.', 'error');
     }
 }
 
-/* ── TOAST ─────────────────────────────────────────────────── */
-function showToast(title, msg, type = 'success') {
-    const container = document.getElementById('toast-container');
-    if (!container) return;
-    const el = document.createElement('div');
-    el.className = 'toast';
-    const colors = { success: '#16A34A', error: '#DC2626', info: '#2563EB' };
-    el.innerHTML = `
-        <div class="toast-icon" style="background:${colors[type] || colors.info}"></div>
-        <div>
-            <div class="toast-title">${title}</div>
-            <div class="toast-msg">${msg}</div>
-        </div>`;
-    container.appendChild(el);
+/* ── TOAST MESSAGES ── */
+function showToast(msg, type = 'success') {
+    const icons = {
+        success: `<svg fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>`,
+        info:    `<svg fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z"/></svg>`,
+        warning: `<svg fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z"/></svg>`,
+        error:   `<svg fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z"/></svg>`,
+    };
 
-    const dismiss = () => { el.classList.add('exit'); setTimeout(() => el.remove(), 300); };
-    el.addEventListener('click', dismiss);
-    setTimeout(dismiss, 3500);
+    const container = document.getElementById('toastContainer');
+    if (!container) return;
+
+    const t = document.createElement('div');
+    t.className = `toast toast-${type}`;
+    t.innerHTML = `${icons[type] || ''}<span>${msg}</span>`;
+    container.appendChild(t);
+
+    setTimeout(() => {
+        t.style.animation = 'toastOut 0.3s ease forwards';
+        t.addEventListener('animationend', () => t.remove());
+    }, 4000);
 }
