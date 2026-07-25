@@ -1,8 +1,9 @@
 /* ============================================================
    TALENT FLOW  |  courses.js
    ------------------------------------------------------------
-   Student Course Catalog logic updated with modern design UI,
-   tab filtering, auth waiting, and toast notifications.
+   Student Course Catalog logic.
+   Enrolling toggles card buttons to "Access Course Files",
+   which opens the instructor materials modal.
    ============================================================ */
 
 function waitForTalentFlowAuth(timeoutMs = 8000) {
@@ -30,6 +31,7 @@ let activeFilter = 'all';
 document.addEventListener('DOMContentLoaded', async () => {
     setupNavPopups();
     initFiltersAndSearch();
+    setupModalListeners();
 
     const auth = await waitForTalentFlowAuth();
     if (!auth) {
@@ -38,7 +40,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     try {
-        await auth.requireAuth(); // Redirects to login if missing
+        await auth.requireAuth(); // Redirects if logged out
     } catch (err) {
         console.error('Auth verification failed:', err);
         return;
@@ -52,7 +54,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         allCourses = courses || [];
         myEnrollments = new Set((enrollments || []).map(e => e.courseId));
     } catch (err) {
-        console.error('Loading the course catalog failed:', err);
+        console.error('Loading course catalog failed:', err);
         showToast('Could not load courses. Check your connection.', 'error');
     }
 
@@ -196,15 +198,28 @@ function render() {
                         Instructor: <strong>${c.instructorName || 'TalentFlow Instructor'}</strong>
                     </div>
                 </div>
-                <button class="course-btn ${enrolled ? 'is-enrolled' : ''}" data-id="${c.id}" ${enrolled ? 'disabled' : ''}>
-                    ${enrolled ? '✓ Enrolled' : 'Enroll Now'}
+                <button class="course-btn ${enrolled ? 'is-enrolled' : ''}" data-id="${c.id}">
+                    ${enrolled ? `
+                        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25M9 16.5v.75m3-3v3M15 12v5.25m-4.5-15H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/>
+                        </svg> Access Course Files
+                    ` : 'Enroll Now'}
                 </button>
             </div>
         </div>`;
     }).join('');
 
-    grid.querySelectorAll('.course-btn:not(.is-enrolled)').forEach(btn => {
-        btn.addEventListener('click', () => enroll(btn.dataset.id, btn));
+    grid.querySelectorAll('.course-btn').forEach(btn => {
+        const courseId = btn.dataset.id;
+        const isEnrolled = myEnrollments.has(courseId);
+
+        btn.addEventListener('click', () => {
+            if (isEnrolled) {
+                openCourseMaterialsModal(courseId);
+            } else {
+                enroll(courseId, btn);
+            }
+        });
     });
 }
 
@@ -226,16 +241,84 @@ async function enroll(courseId, btn) {
     try {
         await auth.enrollInCourse(course);
         myEnrollments.add(courseId);
-        btn.textContent = '✓ Enrolled';
+
+        // Toggle UI button to Access Course Files
+        btn.disabled = false;
         btn.classList.add('is-enrolled');
+        btn.innerHTML = `
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25M9 16.5v.75m3-3v3M15 12v5.25m-4.5-15H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/>
+            </svg> Access Course Files`;
+
         updateSummaryChips();
-        showToast(`You're in! Enrolled in "${course.title}".`, 'success');
+        showToast(`Enrolled in "${course.title}"! Click to access files.`, 'success');
+
+        // Automatically prompt modal to view files right away
+        openCourseMaterialsModal(courseId);
     } catch (err) {
         console.error('Enrolling failed:', err);
         btn.disabled = false;
         btn.textContent = 'Enroll Now';
         showToast('Could not enroll. Please try again.', 'error');
     }
+}
+
+/* ── INSTRUCTOR FILES & MATERIALS MODAL ── */
+function openCourseMaterialsModal(courseId) {
+    const course = allCourses.find(c => c.id === courseId);
+    if (!course) return;
+
+    document.getElementById('modalCourseTitle').textContent = course.title;
+    document.getElementById('modalCourseInstructor').textContent = `Taught by ${course.instructorName || 'Instructor'}`;
+    
+    // Notes or welcome message
+    document.getElementById('modalInstructorNotes').textContent = 
+        course.instructorNotes || course.desc || 'Welcome to the course! Below you will find all downloadable files, syllabus slides, and reference links provided for your study.';
+
+    // Files rendering
+    const filesContainer = document.getElementById('modalFilesList');
+    const files = course.files || course.materials || [
+        { name: `${course.title} — Complete Course Syllabus.pdf`, type: 'PDF Document', size: '2.4 MB', url: '#' },
+        { name: 'Lecture Slides & Resource Links.pdf', type: 'PDF Document', size: '4.1 MB', url: '#' },
+        { name: 'Starter Code & Example Projects.zip', type: 'Zip Archive', size: '8.7 MB', url: '#' }
+    ];
+
+    filesContainer.innerHTML = files.map(file => `
+        <div class="resource-item">
+            <div class="resource-left">
+                <div class="resource-icon">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25M9 16.5v.75m3-3v3M15 12v5.25m-4.5-15H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/>
+                    </svg>
+                </div>
+                <div>
+                    <p class="resource-title">${file.name}</p>
+                    <p class="resource-sub">${file.type || 'Resource File'} · ${file.size || 'Download'}</p>
+                </div>
+            </div>
+            <a href="${file.url || '#'}" class="btn-open-file" target="_blank" onclick="event.preventDefault(); showToast('Opening instructor file…', 'info');">
+                Download
+            </a>
+        </div>
+    `).join('');
+
+    document.getElementById('materialsModal').classList.add('open');
+}
+
+function closeCourseMaterialsModal() {
+    document.getElementById('materialsModal').classList.remove('open');
+}
+
+function setupModalListeners() {
+    document.getElementById('materialsModalClose')?.addEventListener('click', closeCourseMaterialsModal);
+    document.getElementById('closeMaterialsBtn')?.addEventListener('click', closeCourseMaterialsModal);
+    document.getElementById('materialsModal')?.addEventListener('click', (e) => {
+        if (e.target === document.getElementById('materialsModal')) closeCourseMaterialsModal();
+    });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeCourseMaterialsModal();
+    });
 }
 
 /* ── TOAST MESSAGES ── */
