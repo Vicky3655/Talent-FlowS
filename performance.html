@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="performance.css">
-    <link rel="stylesheet" href="mobile-nav.css">
     <script type="module" src="auth.js"></script>
     <script type="module" src="data-store.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -33,7 +32,7 @@
         <div class="avatar">
             <img id="nav-avatar-img" src="" alt="Instructor">
         </div>
-        <button class="hamburger-btn" id="hamburger-btn">
+        <button class="hamburger-btn" id="hamburger-btn" aria-label="Toggle Navigation">
             <span class="hb-bar hb-top"></span>
             <span class="hb-bar hb-mid"></span>
             <span class="hb-bar hb-bot"></span>
@@ -51,7 +50,7 @@
             </svg>
             Talent Flow
         </a>
-        <button class="sb-close-btn" aria-label="Close menu">
+        <button class="sb-close-btn" id="sb-close-btn" aria-label="Close menu">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
             </svg>
@@ -110,8 +109,8 @@
     <div class="sb-footer">
         <img src="" alt="Instructor" class="sb-footer-avatar" id="sbFooterAvatar">
         <div class="sb-footer-info">
-            <div class="sb-footer-name" id="sbFooterName"></div>
-            <div class="sb-footer-role" id="sbFooterRole"></div>
+            <div class="sb-footer-name" id="sbFooterName">Instructor</div>
+            <div class="sb-footer-role" id="sbFooterRole">Instructor</div>
         </div>
     </div>
 </aside>
@@ -179,7 +178,7 @@
 
             <!-- Engagement Ring -->
             <div class="engagement-wrap">
-                <canvas id="engagementRing" width="140" height="140"></canvas>
+                <canvas id="engagementRing" width="130" height="130"></canvas>
                 <div class="ring-label">
                     <span class="ring-pct" id="ringPct">0%</span>
                     <span class="ring-text">Grading<br>Completion</span>
@@ -191,8 +190,8 @@
 
 </main>
 
+<script src="nav-avatar.js"></script>
 <script src="performance.js"></script>
 <script src="mobile-nav.js"></script>
-<script src="nav-avatar.js"></script>
 </body>
 </html>
