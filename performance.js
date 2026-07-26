@@ -1,18 +1,8 @@
 /* ═══════════════════════════════════════════
    TALENT FLOW — Performance
    performance.js
-   ------------------------------------------------------------
-   Every number on this page now comes from Supabase (courses +
-   assignments + enrollments), computed once on load. There's no
-   historical, day-by-day tracking anywhere in the schema yet, so
-   the period pills all show the same real current snapshot
-   rather than a fabricated growth curve — that's the honest
-   thing to do until real time-series data exists.
 ═══════════════════════════════════════════ */
 
-// auth.js is an ES module fetching an external dependency, so there's
-// no hard guarantee window.TalentFlowAuth exists the instant this
-// script's DOMContentLoaded callback fires.
 function waitForTalentFlowAuth(timeoutMs = 8000) {
     if (window.TalentFlowAuth) return Promise.resolve(window.TalentFlowAuth);
     return new Promise((resolve) => {
@@ -29,7 +19,7 @@ function waitForTalentFlowAuth(timeoutMs = 8000) {
     });
 }
 
-/* ── Profile bridge (fast local paint for the nav avatar) ─── */
+/* ── Profile bridge ─── */
 const PROFILE_KEY = 'tf_instructor_profile';
 
 function getSavedProfile() {
@@ -47,7 +37,6 @@ function applyProfileToNav() {
 }
 
 /* ── Metric config ───────────────────────── */
-
 const METRICS = [
     {
         key:     'students',
@@ -100,13 +89,9 @@ const METRICS = [
 ];
 
 /* ── State ───────────────────────────────── */
-
 let currentPeriod  = 'Last 7 days';
-let trendRafId      = null;
 let currentInstructorId = null;
 
-// Populated once from Supabase; every period pill reads from this
-// same real snapshot (see the header comment above).
 let SNAPSHOT = {
     students: 0,
     submissionRate: 0,
@@ -116,34 +101,30 @@ let SNAPSHOT = {
     avgGrade: 0,
     passRate: 0,
     topCourse: '—',
-    courses: [], // [{name, enrolled, submissionRate, grade, color}]
+    courses: [],
 };
 
 const SPARK_COLORS = ['#2563EB', '#7C3AED', '#16A34A', '#EA580C'];
 const COURSE_COLORS = ['#2563EB', '#7C3AED', '#16A34A', '#EA580C', '#0891B2', '#DC2626'];
 
-/* ── Load + derive real data ─────────────── */
-
+/* ── Load real snapshot data ─────────────── */
 async function loadSnapshot() {
     const [courses, assignments, students] = await Promise.all([
-        TalentFlowData.getCourses(currentInstructorId),
-        TalentFlowData.getAssignments(currentInstructorId),
-        TalentFlowData.getStudentsForInstructor(currentInstructorId).catch((err) => {
-            console.error('Could not load enrolled students:', err);
-            return [];
-        }),
+        window.TalentFlowData.getCourses(currentInstructorId),
+        window.TalentFlowData.getAssignments(currentInstructorId),
+        window.TalentFlowData.getStudentsForInstructor(currentInstructorId).catch(() => []),
     ]);
 
     const enrollCountByCourse = {};
-    students.forEach((s) => {
-        s.courseIds.forEach((cid) => { enrollCountByCourse[cid] = (enrollCountByCourse[cid] || 0) + 1; });
+    (students || []).forEach((s) => {
+        (s.courseIds || []).forEach((cid) => { enrollCountByCourse[cid] = (enrollCountByCourse[cid] || 0) + 1; });
     });
 
     let submittedTotal = 0, gradedTotal = 0, passCount = 0, scoreSum = 0, scoreCount = 0;
     const byCourseTitle = {};
-    courses.forEach((c) => { byCourseTitle[c.title] = { sum: 0, count: 0, submitted: 0, graded: 0 }; });
+    (courses || []).forEach((c) => { byCourseTitle[c.title] = { sum: 0, count: 0, submitted: 0, graded: 0 }; });
 
-    assignments.forEach((a) => {
+    (assignments || []).forEach((a) => {
         const max = a.maxScore || 100;
         const bucket = byCourseTitle[a.course] || (byCourseTitle[a.course] = { sum: 0, count: 0, submitted: 0, graded: 0 });
         (a.submissions || []).forEach((s) => {
@@ -163,23 +144,22 @@ async function loadSnapshot() {
         });
     });
 
-    const totalPossible = assignments.reduce((sum, a) => sum + (a.status !== 'draft' ? students.length : 0), 0);
+    const totalPossible = (assignments || []).reduce((sum, a) => sum + (a.status !== 'draft' ? (students || []).length : 0), 0);
 
-    const courseRows = courses.map((c, i) => {
+    const courseRows = (courses || []).map((c, i) => {
         const b = byCourseTitle[c.title] || { sum: 0, count: 0 };
         return {
             name: c.title,
             enrolled: enrollCountByCourse[c.id] || 0,
-            submissionRate: 0, // filled below once we know possible submissions per course
             grade: b.count ? Math.round(b.sum / b.count) : 0,
             color: COURSE_COLORS[i % COURSE_COLORS.length],
         };
     }).sort((a, b) => b.enrolled - a.enrolled);
 
     SNAPSHOT = {
-        students: students.length,
+        students: (students || []).length,
         submissionRate: totalPossible ? Math.round((submittedTotal / totalPossible) * 100) : 0,
-        enrolments: students.reduce((sum, s) => sum + s.courseIds.length, 0),
+        enrolments: (students || []).reduce((sum, s) => sum + (s.courseIds || []).length, 0),
         assignmentsSubmitted: submittedTotal,
         gradingCompletion: submittedTotal ? Math.round((gradedTotal / submittedTotal) * 100) : 0,
         avgGrade: scoreCount ? Math.round(scoreSum / scoreCount) : 0,
@@ -189,12 +169,12 @@ async function loadSnapshot() {
     };
 }
 
-/* ── Sparkline (flat — see header note on why) ───────────── */
-
+/* ── Sparklines ─────────────────────────── */
 function drawSparkline(canvas, value, color) {
+    if (!canvas) return;
     const ctx = canvas.getContext('2d');
-    const W   = canvas.offsetWidth  || canvas.width;
-    const H   = canvas.offsetHeight || canvas.height;
+    const W   = canvas.offsetWidth  || canvas.width || 120;
+    const H   = canvas.offsetHeight || canvas.height || 42;
     canvas.width  = W;
     canvas.height = H;
     ctx.clearRect(0, 0, W, H);
@@ -222,9 +202,9 @@ function drawSparkline(canvas, value, color) {
 }
 
 /* ── Counter animation ───────────────────── */
-
 function animateCounter(el, end, suffix = '', delay = 0) {
-    const dur = 900;
+    if (!el) return;
+    const dur = 800;
     setTimeout(() => {
         const t0 = performance.now();
         function step(now) {
@@ -241,7 +221,6 @@ function animateCounter(el, end, suffix = '', delay = 0) {
 }
 
 /* ── Stat cards ──────────────────────────── */
-
 function metricValue(key) {
     switch (key) {
         case 'students':       return { value: SNAPSHOT.students, suffix: '' };
@@ -254,37 +233,37 @@ function metricValue(key) {
 
 function renderStatCards() {
     const container = document.getElementById('statCards');
+    if (!container) return;
+
     container.innerHTML = METRICS.map((m, i) => `
-        <div class="stat-card" style="--accent:${m.accent};--accent-l:${m.accentL};animation-delay:${i * 70}ms">
+        <div class="stat-card" style="--accent:${m.accent};--accent-l:${m.accentL};animation-delay:${i * 60}ms">
             <div class="card-top">
                 <div class="card-icon">${m.icon}</div>
                 <span class="card-badge neutral">Live</span>
             </div>
             <div class="card-value" id="cv-${m.key}">0</div>
             <div class="card-label">${m.label}</div>
-            <div class="card-spark"><canvas id="cs-${m.key}" height="52"></canvas></div>
+            <div class="card-spark"><canvas id="cs-${m.key}" height="42"></canvas></div>
         </div>`).join('');
 
     METRICS.forEach((m, i) => {
         const { value, suffix } = metricValue(m.key);
-        animateCounter(document.getElementById('cv-' + m.key), value, suffix, i * 70);
+        animateCounter(document.getElementById('cv-' + m.key), value, suffix, i * 60);
         setTimeout(() => {
             const canvas = document.getElementById('cs-' + m.key);
             if (canvas) drawSparkline(canvas, value, m.accent);
-        }, 200 + i * 70);
+        }, 180 + i * 60);
     });
 }
 
-/* ── Trend chart — real snapshot, drawn as a flat reference
-   line per metric rather than an invented curve ───────────── */
-
+/* ── Trend chart ─────────────────────────── */
 function renderTrendChart() {
     const canvas = document.getElementById('trendCanvas');
-    if (!canvas) return;
+    if (!canvas || !canvas.parentElement) return;
 
     const rect = canvas.parentElement.getBoundingClientRect();
     const dpr  = window.devicePixelRatio || 1;
-    canvas.width  = rect.width  * dpr;
+    canvas.width  = rect.width * dpr;
     canvas.height = rect.height * dpr;
     const ctx = canvas.getContext('2d');
     ctx.scale(dpr, dpr);
@@ -294,13 +273,15 @@ function renderTrendChart() {
     const seriesKeys   = ['students', 'submissionRate', 'enrolments', 'assignments'];
 
     const legend = document.getElementById('chartLegend');
-    legend.innerHTML = seriesKeys.map((k, i) => `
-        <div class="legend-item">
-            <div class="legend-dot" style="background:${SPARK_COLORS[i]}"></div>
-            ${seriesLabels[i]}
-        </div>`).join('');
+    if (legend) {
+        legend.innerHTML = seriesKeys.map((k, i) => `
+            <div class="legend-item">
+                <div class="legend-dot" style="background:${SPARK_COLORS[i]}"></div>
+                ${seriesLabels[i]}
+            </div>`).join('');
+    }
 
-    const padL = 40, padR = 20, padT = 14, padB = 32;
+    const padL = 30, padR = 20, padT = 14, padB = 28;
     const cW = W - padL - padR, cH = H - padT - padB;
 
     ctx.clearRect(0, 0, W, H);
@@ -314,10 +295,10 @@ function renderTrendChart() {
         ctx.stroke();
     });
 
-    ctx.font = '600 12px Inter, sans-serif';
+    ctx.font = '600 11px Inter, sans-serif';
     ctx.fillStyle = '#94A3B8';
     ctx.textAlign = 'center';
-    ctx.fillText('No day-by-day history is tracked yet — showing today\u2019s real totals', W / 2, H - 8);
+    ctx.fillText('Live metrics snapshot across courses', W / 2, H - 6);
 
     const maxVal = Math.max(1, ...seriesKeys.map((k) => metricValue(k).value));
     seriesKeys.forEach((k, i) => {
@@ -335,19 +316,19 @@ function renderTrendChart() {
 }
 
 /* ── Course performance table ────────────── */
-
 function renderCourseTable() {
     const rows = SNAPSHOT.courses;
     const el   = document.getElementById('courseRows');
+    if (!el) return;
 
     if (!rows.length) {
-        el.innerHTML = `<p style="text-align:center;color:var(--slate-4);padding:20px;font-size:13px">No courses yet.</p>`;
+        el.innerHTML = `<p style="text-align:center;color:var(--slate-4);padding:20px;font-size:13px">No published courses found.</p>`;
         return;
     }
 
     el.innerHTML = rows.map((c, i) => `
-        <div class="course-row" style="animation-delay:${i * 60}ms">
-            <div>
+        <div class="course-row" style="animation-delay:${i * 50}ms">
+            <div style="min-width:0;">
                 <div class="cr-name" title="${c.name}">${c.name}</div>
             </div>
             <div class="cr-enrolled">
@@ -382,17 +363,18 @@ function gradeColor(g) {
 }
 
 /* ── Quick insights ──────────────────────── */
-
 function renderInsights() {
     const items = [
         { icon: '🏆', label: 'Top Course',      value: SNAPSHOT.topCourse, sub: `${SNAPSHOT.courses[0]?.enrolled || 0} students enrolled` },
         { icon: '📤', label: 'Submission Rate', value: `${SNAPSHOT.submissionRate}%`, sub: 'Of assigned work turned in' },
-        { icon: '✅', label: 'Pass Rate',        value: `${SNAPSHOT.passRate}%`, sub: 'Graded work scoring \u2265 60%' },
-        { icon: '📝', label: 'Grading Progress', value: `${SNAPSHOT.gradingCompletion}%`, sub: 'Of submissions graded so far' },
+        { icon: '✅', label: 'Pass Rate',        value: `${SNAPSHOT.passRate}%`, sub: 'Work scoring \u2265 60%' },
+        { icon: '📝', label: 'Grading Progress', value: `${SNAPSHOT.gradingCompletion}%`, sub: 'Submissions graded so far' },
     ];
     const list = document.getElementById('insightsList');
+    if (!list) return;
+
     list.innerHTML = items.map((item, i) => `
-        <div class="insight-item" style="animation-delay:${i * 60}ms">
+        <div class="insight-item" style="animation-delay:${i * 50}ms">
             <div class="insight-icon">${item.icon}</div>
             <div class="insight-body">
                 <div class="insight-label">${item.label}</div>
@@ -402,23 +384,22 @@ function renderInsights() {
         </div>`).join('');
 }
 
-/* ── Engagement ring (donut) — grading completion ────────── */
-
+/* ── Engagement ring (donut) ───────────────── */
 function renderEngagementRing() {
     const pct    = SNAPSHOT.gradingCompletion || 0;
     const canvas = document.getElementById('engagementRing');
     const pctEl  = document.getElementById('ringPct');
-    if (!canvas) return;
+    if (!canvas || !pctEl) return;
 
     const ctx = canvas.getContext('2d');
     const dpr = window.devicePixelRatio || 1;
-    canvas.width  = 140 * dpr;
-    canvas.height = 140 * dpr;
+    canvas.width  = 130 * dpr;
+    canvas.height = 130 * dpr;
     ctx.scale(dpr, dpr);
 
-    const cx = 70, cy = 70, r = 50, lw = 12;
+    const cx = 65, cy = 65, r = 46, lw = 10;
     const startAngle = -Math.PI / 2;
-    const dur = 1000;
+    const dur = 900;
     const t0  = performance.now();
 
     function draw(now) {
@@ -426,7 +407,7 @@ function renderEngagementRing() {
         const ease = 1 - Math.pow(1 - p, 3);
         const endAngle = startAngle + (Math.PI * 2 * (pct / 100) * ease);
 
-        ctx.clearRect(0, 0, 140, 140);
+        ctx.clearRect(0, 0, 130, 130);
 
         ctx.beginPath();
         ctx.arc(cx, cy, r, 0, Math.PI * 2);
@@ -454,14 +435,10 @@ function renderEngagementRing() {
     requestAnimationFrame(draw);
 }
 
-/* ── Period label ─────────────────────────── */
-
 function updatePeriodLabel(period) {
     const el = document.getElementById('trendPeriodLabel');
     if (el) el.textContent = period;
 }
-
-/* ── Master update ───────────────────────── */
 
 function updateAll(period) {
     renderStatCards();
@@ -472,8 +449,6 @@ function updateAll(period) {
     updatePeriodLabel(period);
 }
 
-/* ── Period pill switching ───────────────── */
-
 function initPeriodPills() {
     const pills = document.querySelectorAll('.period-pill');
     pills.forEach(pill => {
@@ -482,14 +457,10 @@ function initPeriodPills() {
             pills.forEach(p => p.classList.remove('active'));
             pill.classList.add('active');
             currentPeriod = pill.dataset.value;
-            // No real per-period history exists yet, so this just
-            // re-renders the same live snapshot under the new label.
             updateAll(currentPeriod);
         });
     });
 }
-
-/* ── Redraw chart on resize ──────────────── */
 
 let resizeTimer;
 window.addEventListener('resize', () => {
@@ -497,22 +468,17 @@ window.addEventListener('resize', () => {
     resizeTimer = setTimeout(() => renderTrendChart(), 200);
 });
 
-/* ── Boot ────────────────────────────────── */
-
+/* ── Boot ── */
 document.addEventListener('DOMContentLoaded', async () => {
     applyProfileToNav();
     initPeriodPills();
 
     const auth = await waitForTalentFlowAuth();
-    if (!auth) {
-        document.getElementById('statCards').innerHTML =
-            `<p style="grid-column:1/-1;color:var(--slate-4);padding:20px">Couldn't connect — please refresh the page.</p>`;
-        return;
-    }
+    if (!auth) return;
 
     let user;
     try {
-        user = await auth.requireAuth(); // redirects to login.html if signed out
+        user = await auth.requireAuth();
     } catch (err) {
         console.error('Auth check failed:', err);
         return;
