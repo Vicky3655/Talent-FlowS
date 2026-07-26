@@ -3,7 +3,7 @@
    ------------------------------------------------------------
    Student Course Catalog logic.
    Enrolling toggles card buttons to "Access Course Files",
-   which opens the instructor materials modal.
+   which opens the mobile-optimized instructor materials sheet.
    ============================================================ */
 
 function waitForTalentFlowAuth(timeoutMs = 8000) {
@@ -251,9 +251,8 @@ async function enroll(courseId, btn) {
             </svg> Access Course Files`;
 
         updateSummaryChips();
-        showToast(`Enrolled in "${course.title}"! Click to access files.`, 'success');
+        showToast(`Enrolled in "${course.title}"! Opening course files…`, 'success');
 
-        // Automatically prompt modal to view files right away
         openCourseMaterialsModal(courseId);
     } catch (err) {
         console.error('Enrolling failed:', err);
@@ -271,27 +270,27 @@ function openCourseMaterialsModal(courseId) {
     document.getElementById('modalCourseTitle').textContent = course.title;
     document.getElementById('modalCourseInstructor').textContent = `Taught by ${course.instructorName || 'Instructor'}`;
     
-    // Notes or welcome message
+    // Welcome message / notes
     document.getElementById('modalInstructorNotes').textContent = 
         course.instructorNotes || course.desc || 'Welcome to the course! Below you will find all downloadable files, syllabus slides, and reference links provided for your study.';
 
     // Files rendering
     const filesContainer = document.getElementById('modalFilesList');
     const files = course.files || course.materials || [
-        { name: `${course.title} — Complete Course Syllabus.pdf`, type: 'PDF Document', size: '2.4 MB', url: '#' },
-        { name: 'Lecture Slides & Resource Links.pdf', type: 'PDF Document', size: '4.1 MB', url: '#' },
-        { name: 'Starter Code & Example Projects.zip', type: 'Zip Archive', size: '8.7 MB', url: '#' }
+        { name: `${course.title} — Syllabus.pdf`, type: 'PDF Document', size: '2.4 MB', url: '#' },
+        { name: 'Lecture Slides & Resources.pdf', type: 'PDF Document', size: '4.1 MB', url: '#' },
+        { name: 'Starter Code & Examples.zip', type: 'Zip Archive', size: '8.7 MB', url: '#' }
     ];
 
     filesContainer.innerHTML = files.map(file => `
         <div class="resource-item">
             <div class="resource-left">
                 <div class="resource-icon">
-                    <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25M9 16.5v.75m3-3v3M15 12v5.25m-4.5-15H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/>
                     </svg>
                 </div>
-                <div>
+                <div style="min-width:0">
                     <p class="resource-title">${file.name}</p>
                     <p class="resource-sub">${file.type || 'Resource File'} · ${file.size || 'Download'}</p>
                 </div>
@@ -303,10 +302,12 @@ function openCourseMaterialsModal(courseId) {
     `).join('');
 
     document.getElementById('materialsModal').classList.add('open');
+    document.body.style.overflow = 'hidden';
 }
 
 function closeCourseMaterialsModal() {
     document.getElementById('materialsModal').classList.remove('open');
+    document.body.style.overflow = '';
 }
 
 function setupModalListeners() {
@@ -341,5 +342,5 @@ function showToast(msg, type = 'success') {
     setTimeout(() => {
         t.style.animation = 'toastOut 0.3s ease forwards';
         t.addEventListener('animationend', () => t.remove());
-    }, 4000);
+    }, 3800);
 }
