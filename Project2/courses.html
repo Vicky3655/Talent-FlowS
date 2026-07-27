@@ -122,7 +122,7 @@
     <div class="page-header">
         <div>
             <h1>Browse Courses</h1>
-            <p class="page-sub">Find your next course, view instructor files, and start learning</p>
+            <p class="page-sub">Find your next course, view instructor profiles, and start learning</p>
         </div>
         <!-- Summary chips -->
         <div class="header-chips">
@@ -169,12 +169,10 @@
 
 </main>
 
-<!-- ══ COURSE MATERIALS & FILES MODAL (Mobile Bottom Sheet Optimized) ══ -->
+<!-- ══ COURSE MATERIALS & FILES MODAL ══ -->
 <div class="modal" id="materialsModal">
     <div class="modal-box">
-        <!-- Mobile Bottom Sheet Grab Indicator Handle -->
         <div class="modal-drag-handle"></div>
-
         <button class="modal-close" id="materialsModalClose" aria-label="Close modal">
             <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
         </button>
@@ -191,7 +189,6 @@
             </div>
         </div>
 
-        <!-- Notes / Overview Section -->
         <div class="instructor-notes-box">
             <div class="in-label">
                 <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z"/></svg>
@@ -200,13 +197,70 @@
             <p class="in-text" id="modalInstructorNotes">Welcome to the course! Below you will find all downloadable files, syllabus slides, and reference links provided for your study.</p>
         </div>
 
-        <!-- Files & Resources List -->
         <p class="files-heading">Attached Files &amp; Resources</p>
-        <div class="resources-list" id="modalFilesList">
-            <!-- Dynamic File Items Rendered Here -->
-        </div>
+        <div class="resources-list" id="modalFilesList"></div>
 
         <button class="close-modal-btn" id="closeMaterialsBtn">Done Reading</button>
+    </div>
+</div>
+
+<!-- ══ PUBLIC INSTRUCTOR PROFILE MODAL ══ -->
+<div class="modal" id="instructorProfileModal">
+    <div class="modal-box instructor-modal-box">
+        <div class="modal-drag-handle"></div>
+        <button class="modal-close" id="instModalClose" aria-label="Close profile">
+            <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+
+        <!-- Instructor Banner & Header -->
+        <div class="inst-banner">
+            <span class="inst-verified-badge">
+                <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg> Verified Instructor
+            </span>
+        </div>
+        <div class="inst-header">
+            <img src="" alt="Instructor" id="instAvatar" class="inst-avatar">
+            <div class="inst-header-text">
+                <h2 id="instName">Instructor Name</h2>
+                <p class="inst-title" id="instTitle">Senior Instructor</p>
+            </div>
+        </div>
+
+        <!-- Instructor Profile Details -->
+        <div class="inst-body">
+            <div class="inst-section">
+                <p class="inst-section-label">About the Instructor</p>
+                <p class="inst-bio" id="instBio">Experienced educator passionate about teaching and mentoring students.</p>
+            </div>
+
+            <div class="inst-details-grid">
+                <div class="inst-detail-card" id="instExpertiseBox">
+                    <span class="inst-detail-label">Expertise</span>
+                    <div class="inst-tags" id="instExpertisePills">
+                        <!-- Expertise tags injected here -->
+                    </div>
+                </div>
+                <div class="inst-detail-card" id="instEduBox">
+                    <span class="inst-detail-label">Background &amp; Experience</span>
+                    <p class="inst-detail-val" id="instEducation">—</p>
+                </div>
+            </div>
+
+            <!-- Social / Web Links -->
+            <div class="inst-links-row" id="instSocialLinks">
+                <!-- Social links injected here -->
+            </div>
+
+            <!-- Other Courses by this Instructor -->
+            <div class="inst-section" style="margin-top: 18px;">
+                <p class="inst-section-label">Courses Taught by this Instructor</p>
+                <div class="inst-courses-list" id="instCoursesList">
+                    <!-- Instructor's published courses -->
+                </div>
+            </div>
+        </div>
+
+        <button class="close-modal-btn" id="closeInstModalBtn" style="margin-top: 16px;">Close Profile</button>
     </div>
 </div>
 
