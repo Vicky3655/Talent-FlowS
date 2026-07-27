@@ -123,15 +123,6 @@ nav {
 .np-list { max-height: 320px; overflow-y: auto; }
 .np-empty { padding: 24px 16px; text-align: center; font-size: 13px; color: var(--slate-4); }
 
-.np-item {
-    display: flex; gap: 12px; padding: 12px 16px;
-    border-bottom: 1px solid var(--slate-1);
-    animation: fadeRow 0.3s ease both;
-    cursor: default;
-}
-.np-item:last-child { border-bottom: none; }
-.np-item.unread { background: var(--blue-l); }
-
 /* Avatar */
 .avatar-wrap { position: relative; cursor: pointer; }
 .avatar-wrap img {
@@ -172,7 +163,7 @@ nav {
 
 .hamburger-btn { display: none; background: none; border: none; cursor: pointer; color: var(--slate-9); padding: 6px; border-radius: 8px; }
 
-/* ══ SIDEBAR (Desktop Fixed Left Rail) ══ */
+/* ══ SIDEBAR ══ */
 .sidebar {
     position: fixed; top: var(--nav-h); left: 0;
     width: var(--sb-w);
@@ -385,7 +376,7 @@ nav {
 .course-btn.is-enrolled:hover { background: var(--green-d); }
 .course-btn:disabled { opacity: 0.85; cursor: default; }
 
-/* ══ MODAL BASE (Desktop Dialog) ══ */
+/* ══ MODAL BASE (Desktop) ══ */
 .modal {
     position: fixed; inset: 0;
     background: rgba(15,23,42,0.55);
@@ -462,14 +453,16 @@ nav {
 .resource-title { font-size: 13.5px; font-weight: 600; color: var(--slate-9); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .resource-sub { font-size: 11.5px; color: var(--slate-4); margin-top: 2px; }
 
+/* Interactive Download Button */
 .btn-open-file {
     padding: 8px 16px; background: var(--blue-l); color: var(--blue);
-    border: none; border-radius: 8px; font-size: 12.5px; font-weight: 700;
+    border: 1px solid #BFDBFE; border-radius: 8px; font-size: 12.5px; font-weight: 700;
     cursor: pointer; text-decoration: none; font-family: 'Plus Jakarta Sans', sans-serif;
-    transition: background 0.15s, color 0.15s; display: inline-flex; align-items: center; gap: 4px;
+    transition: background 0.15s, color 0.15s, transform 0.1s; display: inline-flex; align-items: center; gap: 6px;
     flex-shrink: 0;
 }
-.btn-open-file:hover { background: var(--blue); color: white; }
+.btn-open-file:hover { background: var(--blue); color: white; border-color: var(--blue); }
+.btn-open-file:active { transform: scale(0.96); }
 
 .close-modal-btn {
     width: 100%; padding: 12px; background: var(--slate-1); color: var(--slate-7);
@@ -643,7 +636,7 @@ nav {
     .search-wrap { min-width: unset; width: 100%; }
     .courses-grid { grid-template-columns: 1fr; gap: 14px; }
 
-    /* ─── MOBILE MODALS (Bottom Sheet UI) ─── */
+    /* ─── MOBILE COURSE MATERIALS MODAL (Bottom Sheet UI) ─── */
     .modal {
         padding: 0;
         align-items: flex-end; /* Transforms into a bottom drawer sheet */
@@ -709,5 +702,7 @@ nav {
     .sidebar-link svg { width: 20px; height: 20px; }
     .sidebar-link::before { font-size: 9px; }
 
-    .modal#materialsModal .btn-open-file { padding: 6px 10px; font-size: 11px; }
+    .modal#materialsModal .btn-open-file {
+        padding: 6px 10px; font-size: 11px;
+    }
 }
