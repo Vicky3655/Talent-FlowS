@@ -14,7 +14,7 @@
 </head>
 <body>
 
-<!-- ══ NAV ══ -->
+<!-- ══ TOP NAV BAR ══ -->
 <nav>
     <div class="logo">
         <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none"
@@ -56,11 +56,12 @@
             <img src="" alt="Student" id="nav-avatar-img">
             <div class="online-dot"></div>
         </div>
+
         <div class="profile-popup" id="profilePopup">
             <div class="pp-header">
-                <img src="" alt="Student">
+                <img src="" alt="Student" id="pp-avatar-img">
                 <div>
-                    <p class="pp-name"></p>
+                    <p class="pp-name" id="ppName">Student</p>
                     <p class="pp-role">Student</p>
                 </div>
             </div>
@@ -84,15 +85,9 @@
             </a>
         </div>
     </div>
-
-    <button class="hamburger-btn" id="hamburgerBtn">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M4 6h16M4 12h16M4 18h16"/>
-        </svg>
-    </button>
 </nav>
 
-<!-- ══ SIDEBAR / MOBILE BOTTOM NAV ══ -->
+<!-- ══ SIDEBAR (Desktop Fixed Rail / Mobile Bottom Navigation Bar) ══ -->
 <aside class="sidebar" id="sidebar">
     <a href="student-dashboard.html" class="sidebar-link" data-tip="Dashboard">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
@@ -169,7 +164,7 @@
 
 </main>
 
-<!-- ══ COURSE MATERIALS & FILES MODAL ══ -->
+<!-- ══ COURSE MATERIALS MODAL ══ -->
 <div class="modal" id="materialsModal">
     <div class="modal-box">
         <div class="modal-drag-handle"></div>
@@ -236,9 +231,7 @@
             <div class="inst-details-grid">
                 <div class="inst-detail-card" id="instExpertiseBox">
                     <span class="inst-detail-label">Expertise</span>
-                    <div class="inst-tags" id="instExpertisePills">
-                        <!-- Expertise tags injected here -->
-                    </div>
+                    <div class="inst-tags" id="instExpertisePills"></div>
                 </div>
                 <div class="inst-detail-card" id="instEduBox">
                     <span class="inst-detail-label">Background &amp; Experience</span>
@@ -247,16 +240,12 @@
             </div>
 
             <!-- Social / Web Links -->
-            <div class="inst-links-row" id="instSocialLinks">
-                <!-- Social links injected here -->
-            </div>
+            <div class="inst-links-row" id="instSocialLinks"></div>
 
             <!-- Other Courses by this Instructor -->
             <div class="inst-section" style="margin-top: 18px;">
                 <p class="inst-section-label">Courses Taught by this Instructor</p>
-                <div class="inst-courses-list" id="instCoursesList">
-                    <!-- Instructor's published courses -->
-                </div>
+                <div class="inst-courses-list" id="instCoursesList"></div>
             </div>
         </div>
 
