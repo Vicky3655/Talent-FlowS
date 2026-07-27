@@ -2,8 +2,8 @@
    TALENT FLOW  |  courses.js
    ------------------------------------------------------------
    Student Course Catalog logic.
-   Allows students to view instructor public profile details
-   whether enrolled in a course or not.
+   Handles published course rendering, enrollments, materials,
+   public instructor profile view, and notifications.
    ============================================================ */
 
 function waitForTalentFlowAuth(timeoutMs = 8000) {
@@ -228,7 +228,7 @@ function render() {
         });
     });
 
-    // Attach Instructor Profile Modal Click Listeners (Works whether enrolled or not)
+    // Attach Instructor Profile Click Listeners
     grid.querySelectorAll('.course-instructor').forEach(row => {
         row.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -360,7 +360,7 @@ async function openInstructorProfileModal(courseId) {
     if (!linksHtml) linksHtml = `<span style="font-size:12px;color:var(--slate-4);">Instructor verified on Talent Flow.</span>`;
     socialContainer.innerHTML = linksHtml;
 
-    // Render other published courses by this instructor
+    // Render published courses by this instructor
     const instCoursesList = document.getElementById('instCoursesList');
     const instructorCourses = allCourses.filter(c => 
         (c.instructorId && c.instructorId === course.instructorId) || 
@@ -386,14 +386,12 @@ function closeInstructorProfileModal() {
 
 /* ── MODAL EVENT LISTENERS ── */
 function setupModalListeners() {
-    // Materials Modal
     document.getElementById('materialsModalClose')?.addEventListener('click', closeCourseMaterialsModal);
     document.getElementById('closeMaterialsBtn')?.addEventListener('click', closeCourseMaterialsModal);
     document.getElementById('materialsModal')?.addEventListener('click', (e) => {
         if (e.target === document.getElementById('materialsModal')) closeCourseMaterialsModal();
     });
 
-    // Instructor Profile Modal
     document.getElementById('instModalClose')?.addEventListener('click', closeInstructorProfileModal);
     document.getElementById('closeInstModalBtn')?.addEventListener('click', closeInstructorProfileModal);
     document.getElementById('instructorProfileModal')?.addEventListener('click', (e) => {
