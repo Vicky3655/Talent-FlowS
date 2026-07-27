@@ -2,8 +2,8 @@
    TALENT FLOW  |  courses.js
    ------------------------------------------------------------
    Student Course Catalog logic.
-   Enrolling toggles card buttons to "Access Course Files",
-   which opens the mobile-optimized instructor materials sheet.
+   Allows students to view instructor public profile details
+   whether enrolled in a course or not.
    ============================================================ */
 
 function waitForTalentFlowAuth(timeoutMs = 8000) {
@@ -192,12 +192,17 @@ function render() {
                     </svg>
                     <span>${c.lessons || 0} Lesson${c.lessons !== 1 ? 's' : ''}</span>
                 </div>
-                <div class="course-instructor">
+
+                <!-- Interactive Instructor Info Bar -->
+                <div class="course-instructor" data-instructor-id="${c.instructorId || ''}" data-course-id="${c.id}" title="View Instructor Profile">
                     <img src="${avatar}" alt="${c.instructorName || 'Instructor'}">
                     <div class="course-instructor-info">
-                        Instructor: <strong>${c.instructorName || 'TalentFlow Instructor'}</strong>
+                        <span>Instructor</span>
+                        <strong>${c.instructorName || 'TalentFlow Instructor'}</strong>
                     </div>
+                    <span class="inst-view-badge">View Profile</span>
                 </div>
+
                 <button class="course-btn ${enrolled ? 'is-enrolled' : ''}" data-id="${c.id}">
                     ${enrolled ? `
                         <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -209,6 +214,7 @@ function render() {
         </div>`;
     }).join('');
 
+    // Attach Course Action Events
     grid.querySelectorAll('.course-btn').forEach(btn => {
         const courseId = btn.dataset.id;
         const isEnrolled = myEnrollments.has(courseId);
@@ -219,6 +225,15 @@ function render() {
             } else {
                 enroll(courseId, btn);
             }
+        });
+    });
+
+    // Attach Instructor Profile Modal Click Listeners (Works whether enrolled or not)
+    grid.querySelectorAll('.course-instructor').forEach(row => {
+        row.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const courseId = row.dataset.courseId;
+            openInstructorProfileModal(courseId);
         });
     });
 }
@@ -242,7 +257,6 @@ async function enroll(courseId, btn) {
         await auth.enrollInCourse(course);
         myEnrollments.add(courseId);
 
-        // Toggle UI button to Access Course Files
         btn.disabled = false;
         btn.classList.add('is-enrolled');
         btn.innerHTML = `
@@ -269,12 +283,9 @@ function openCourseMaterialsModal(courseId) {
 
     document.getElementById('modalCourseTitle').textContent = course.title;
     document.getElementById('modalCourseInstructor').textContent = `Taught by ${course.instructorName || 'Instructor'}`;
-    
-    // Welcome message / notes
     document.getElementById('modalInstructorNotes').textContent = 
         course.instructorNotes || course.desc || 'Welcome to the course! Below you will find all downloadable files, syllabus slides, and reference links provided for your study.';
 
-    // Files rendering
     const filesContainer = document.getElementById('modalFilesList');
     const files = course.files || course.materials || [
         { name: `${course.title} — Syllabus.pdf`, type: 'PDF Document', size: '2.4 MB', url: '#' },
@@ -310,15 +321,90 @@ function closeCourseMaterialsModal() {
     document.body.style.overflow = '';
 }
 
+/* ── PUBLIC INSTRUCTOR PROFILE MODAL ── */
+async function openInstructorProfileModal(courseId) {
+    const course = allCourses.find(c => c.id === courseId);
+    if (!course) return;
+
+    let profile = {};
+    if (course.instructorId && window.TalentFlowData?.getPublicProfile) {
+        try {
+            profile = await window.TalentFlowData.getPublicProfile(course.instructorId) || {};
+        } catch (err) {
+            console.error('Could not fetch instructor public profile:', err);
+        }
+    }
+
+    const name = profile.fullName || course.instructorName || 'TalentFlow Instructor';
+    const avatar = profile.avatar || course.instructorAvatar || fallbackAvatar(name);
+    const title = profile.title || course.instructorTitle || 'Senior Instructor';
+    const bio = profile.bio || course.instructorBio || 'Passionate educator committed to sharing industry knowledge and helping students achieve their career goals.';
+    const education = profile.education || profile.experience ? `${profile.experience ? profile.experience + ' years experience · ' : ''}${profile.education || 'Expert Educator'}` : 'Qualified Educator & Industry Expert';
+
+    document.getElementById('instName').textContent = name;
+    document.getElementById('instAvatar').src = avatar;
+    document.getElementById('instTitle').textContent = title;
+    document.getElementById('instBio').textContent = bio;
+    document.getElementById('instEducation').textContent = education;
+
+    // Expertise tags
+    const expertiseContainer = document.getElementById('instExpertisePills');
+    const tags = profile.expertise ? profile.expertise.split(',').map(t => t.trim()) : ['Instruction', 'Mentorship', 'Curriculum Design'];
+    expertiseContainer.innerHTML = tags.map(t => `<span class="inst-tag">${t}</span>`).join('');
+
+    // Social Links
+    const socialContainer = document.getElementById('instSocialLinks');
+    let linksHtml = '';
+    if (profile.website) linksHtml += `<a href="${profile.website}" target="_blank" class="inst-social-btn">🌐 Website</a>`;
+    if (profile.linkedin) linksHtml += `<a href="${profile.linkedin}" target="_blank" class="inst-social-btn">💼 LinkedIn</a>`;
+    if (!linksHtml) linksHtml = `<span style="font-size:12px;color:var(--slate-4);">Instructor verified on Talent Flow.</span>`;
+    socialContainer.innerHTML = linksHtml;
+
+    // Render other published courses by this instructor
+    const instCoursesList = document.getElementById('instCoursesList');
+    const instructorCourses = allCourses.filter(c => 
+        (c.instructorId && c.instructorId === course.instructorId) || 
+        (c.instructorName && c.instructorName === course.instructorName)
+    );
+
+    instCoursesList.innerHTML = instructorCourses.map(ic => `
+        <div class="inst-course-item">
+            <img src="${ic.thumb || 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=100&q=80'}" alt="${ic.title}" class="inst-course-thumb">
+            <span class="inst-course-title">${ic.title}</span>
+            <span class="inst-course-lessons">${ic.lessons || 0} Lessons</span>
+        </div>
+    `).join('');
+
+    document.getElementById('instructorProfileModal').classList.add('open');
+    document.body.style.overflow = 'hidden';
+}
+
+function closeInstructorProfileModal() {
+    document.getElementById('instructorProfileModal').classList.remove('open');
+    document.body.style.overflow = '';
+}
+
+/* ── MODAL EVENT LISTENERS ── */
 function setupModalListeners() {
+    // Materials Modal
     document.getElementById('materialsModalClose')?.addEventListener('click', closeCourseMaterialsModal);
     document.getElementById('closeMaterialsBtn')?.addEventListener('click', closeCourseMaterialsModal);
     document.getElementById('materialsModal')?.addEventListener('click', (e) => {
         if (e.target === document.getElementById('materialsModal')) closeCourseMaterialsModal();
     });
 
+    // Instructor Profile Modal
+    document.getElementById('instModalClose')?.addEventListener('click', closeInstructorProfileModal);
+    document.getElementById('closeInstModalBtn')?.addEventListener('click', closeInstructorProfileModal);
+    document.getElementById('instructorProfileModal')?.addEventListener('click', (e) => {
+        if (e.target === document.getElementById('instructorProfileModal')) closeInstructorProfileModal();
+    });
+
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') closeCourseMaterialsModal();
+        if (e.key === 'Escape') {
+            closeCourseMaterialsModal();
+            closeInstructorProfileModal();
+        }
     });
 }
 
