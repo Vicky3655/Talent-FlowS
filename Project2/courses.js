@@ -397,10 +397,13 @@ async function openInstructorProfileModal(courseId) {
     const education = profile.education || profile.experience ? `${profile.experience ? profile.experience + ' years experience · ' : ''}${profile.education || 'Expert Educator'}` : 'Qualified Educator & Industry Expert';
 
     document.getElementById('instName').textContent = name;
-    document.getElementById('instAvatar').src = avatar;
     document.getElementById('instTitle').textContent = title;
     document.getElementById('instBio').textContent = bio;
     document.getElementById('instEducation').textContent = education;
+
+    const instAvatarEl = document.getElementById('instAvatar');
+    instAvatarEl.src = avatar;
+    instAvatarEl.onerror = function () { this.onerror = null; this.src = fallbackAvatar(name); };
 
     // Expertise tags
     const expertiseContainer = document.getElementById('instExpertisePills');
@@ -410,8 +413,8 @@ async function openInstructorProfileModal(courseId) {
     // Social Links
     const socialContainer = document.getElementById('instSocialLinks');
     let linksHtml = '';
-    if (profile.website) linksHtml += `<a href="${profile.website}" target="_blank" class="inst-social-btn">🌐 Website</a>`;
-    if (profile.linkedin) linksHtml += `<a href="${profile.linkedin}" target="_blank" class="inst-social-btn">💼 LinkedIn</a>`;
+    if (profile.website) linksHtml += `<a href="${escapeHtml(profile.website)}" target="_blank" rel="noopener" class="inst-social-btn">🌐 Website</a>`;
+    if (profile.linkedin) linksHtml += `<a href="${escapeHtml(profile.linkedin)}" target="_blank" rel="noopener" class="inst-social-btn">💼 LinkedIn</a>`;
     if (!linksHtml) linksHtml = `<span style="font-size:12px;color:var(--slate-4);">Instructor verified on Talent Flow.</span>`;
     socialContainer.innerHTML = linksHtml;
 
@@ -423,12 +426,36 @@ async function openInstructorProfileModal(courseId) {
     );
 
     instCoursesList.innerHTML = instructorCourses.map(ic => `
-        <div class="inst-course-item">
-            <img src="${ic.thumb || 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=100&q=80'}" alt="${escapeHtml(ic.title)}" class="inst-course-thumb">
+        <div class="inst-course-item" data-course-id="${ic.id}" role="button" tabindex="0" aria-label="Open ${escapeHtml(ic.title)}">
+            <img src="${ic.thumb || 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=100&q=80'}" alt="${escapeHtml(ic.title)}" class="inst-course-thumb" onerror="this.src='https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=100&q=80'">
             <span class="inst-course-title">${escapeHtml(ic.title)}</span>
             <span class="inst-course-lessons">${ic.lessons || 0} Lessons</span>
+            <svg class="inst-course-chevron" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/></svg>
         </div>
     `).join('');
+
+    // These were previously decorative only (hover style, no handler). Tapping one
+    // now folds into the existing workflow: jump straight to course files if the
+    // student is already enrolled, otherwise close this modal and surface the card
+    // back in the main grid so they can enroll from there.
+    instCoursesList.querySelectorAll('.inst-course-item').forEach(item => {
+        const goToCourse = () => {
+            const targetId = item.dataset.courseId;
+            closeInstructorProfileModal();
+            if (myEnrollments.has(targetId)) {
+                openCourseMaterialsModal(targetId);
+            } else {
+                highlightCourseCard(targetId);
+            }
+        };
+        item.addEventListener('click', goToCourse);
+        item.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                goToCourse();
+            }
+        });
+    });
 
     document.getElementById('instructorProfileModal').classList.add('open');
     document.body.style.overflow = 'hidden';
@@ -437,6 +464,22 @@ async function openInstructorProfileModal(courseId) {
 function closeInstructorProfileModal() {
     document.getElementById('instructorProfileModal').classList.remove('open');
     document.body.style.overflow = '';
+}
+
+/* Scrolls to and briefly pulses a course card already in the grid. Used when a
+   student taps a not-yet-enrolled course from an instructor's course list —
+   rather than silently doing nothing or force-enrolling them, it hands them
+   back to the same card + Enroll button they'd use anywhere else in the app. */
+function highlightCourseCard(courseId) {
+    const btn = document.querySelector(`.course-btn[data-id="${courseId}"]`);
+    const card = btn ? btn.closest('.course-card') : null;
+    if (!card) {
+        showToast('That course is hidden by your current filter or search — try "All Courses".', 'info');
+        return;
+    }
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    card.classList.add('course-card-highlight');
+    setTimeout(() => card.classList.remove('course-card-highlight'), 1600);
 }
 
 /* ── MODAL EVENT LISTENERS ── */
