@@ -301,6 +301,14 @@ nav {
     to   { opacity: 1; transform: translateY(0); }
 }
 
+/* Momentary pulse used to point out a card scrolled to from the instructor
+   profile's "Courses Taught" list, so the jump doesn't feel disorienting */
+.course-card-highlight { animation: courseHighlightPulse 1.6s ease; }
+@keyframes courseHighlightPulse {
+    0%, 100% { box-shadow: var(--shadow); border-color: var(--slate-2); }
+    20%      { box-shadow: 0 0 0 4px rgba(37,99,235,0.28); border-color: var(--blue); }
+}
+
 .course-thumb {
     width: 100%; height: 160px; background: var(--slate-1);
     position: relative; overflow: hidden;
@@ -527,12 +535,18 @@ nav {
 .inst-course-item {
     display: flex; align-items: center; gap: 12px; padding: 10px 12px;
     background: white; border: 1px solid var(--slate-2); border-radius: 10px;
-    text-decoration: none; color: inherit; transition: border-color 0.15s;
+    text-decoration: none; color: inherit; cursor: pointer;
+    transition: border-color 0.15s, background 0.15s, transform 0.1s;
 }
-.inst-course-item:hover { border-color: var(--blue); }
+/* :hover never fires on touch, so tap feedback relies on :active; :focus-visible
+   covers keyboard users tabbing through the now-interactive list */
+.inst-course-item:hover, .inst-course-item:focus-visible { border-color: var(--blue); }
+.inst-course-item:active { background: var(--blue-l); transform: scale(0.99); }
+.inst-course-item:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 .inst-course-thumb { width: 44px; height: 36px; border-radius: 6px; object-fit: cover; background: var(--slate-1); flex-shrink: 0; }
 .inst-course-title { font-size: 13px; font-weight: 700; color: var(--slate-9); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
 .inst-course-lessons { font-size: 11px; color: var(--slate-4); font-weight: 600; flex-shrink: 0; }
+.inst-course-item .inst-course-chevron { color: var(--slate-3); flex-shrink: 0; }
 
 /* ══ EMPTY STATE ══ */
 .empty-state {
@@ -670,6 +684,56 @@ nav {
     .modal .modal-close {
         top: 16px; right: 16px;
         width: 32px; height: 32px;
+    }
+
+    /* ─── MOBILE "VIEW PROFILE" MODAL (Instructor Bottom Sheet) ─── */
+    /* .instructor-modal-box relies on padding:0 so the banner bleeds edge-to-edge,
+       but ".modal .modal-box" above has higher specificity (two classes vs one)
+       and was clobbering it with 16/20/24px padding — insetting the banner with
+       a visible gap and dropping the drag handle into normal flow above it.
+       Re-assert padding:0 here, scoped to this modal, and let the sheet scroll
+       internally (it was overflow:hidden, so tall profiles were silently clipped). */
+    .modal#instructorProfileModal .modal-box {
+        padding: 0;
+        overflow-y: auto;
+        overflow-x: hidden;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* Decorative drag handle now overlays the banner instead of pushing it down */
+    .modal#instructorProfileModal .modal-drag-handle {
+        position: absolute;
+        top: 10px; left: 50%;
+        transform: translateX(-50%);
+        margin: 0;
+        background: rgba(255,255,255,0.6);
+        z-index: 5;
+    }
+
+    /* Close (X) button now sits directly on the banner — style it to read on the
+       gradient instead of the flat slate-1 chip meant for a white background */
+    .modal#instructorProfileModal .modal-close {
+        background: rgba(255,255,255,0.22);
+        color: #fff;
+        backdrop-filter: blur(4px);
+    }
+    .modal#instructorProfileModal .modal-close:hover { background: rgba(255,255,255,0.35); }
+
+    /* Reserve room on the banner so the "Verified Instructor" pill never runs
+       into the close button (they occupied the same corner once the padding
+       above stopped compressing the banner inward) */
+    .modal#instructorProfileModal .inst-banner { padding-right: 56px; }
+
+    /* Flex children default to a min-width equal to their content, so a long
+       instructor name could push past the sheet's edge instead of wrapping */
+    .modal#instructorProfileModal .inst-header-text { min-width: 0; }
+
+    /* Give "Close Profile" the same 16px inset as the rest of the sheet instead
+       of spanning full-bleed into the rounded corners */
+    .modal#instructorProfileModal .close-modal-btn {
+        width: calc(100% - 32px);
+        margin-left: 16px;
+        margin-right: 16px;
     }
 
     .inst-details-grid { grid-template-columns: 1fr; gap: 8px; }
