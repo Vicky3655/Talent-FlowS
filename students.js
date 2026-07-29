@@ -1,4 +1,4 @@
-/* ─── STATE (populated from Supabase — see init() at the bottom) ─── */
+/* ─── STATE (populated from Firebase/Firestore — see init() at the bottom) ─── */
 let STUDENTS = [];
 let COURSES = [];           // [{id, title}]
 let currentInstructorId = null;
@@ -339,12 +339,37 @@ viewGridBtn.addEventListener('click', () => {
     render();
 });
 
+// EmailJS — get these from dashboard.emailjs.com:
+//   EJS_KEY      → Account → General → Public Key
+//   EJS_TEMPLATE → Email Templates → your template's ID
+// Until BOTH are filled in (neither left as the placeholder below),
+// invites run in demo mode: the UI simulates sending but no real email goes out.
 const EJS_KEY      = 'YOUR_PUBLIC_KEY';
 const EJS_SERVICE  = 'service_f4dl4md';
 const EJS_TEMPLATE = 'YOUR_TEMPLATE_ID';
 const SENDER_NAME  = 'CHIME VICTOR CHINAGOROM';
 const SENDER_EMAIL = 'victrends365@gmail.com';
-const BASE_LINK    = 'https://talentflow.app/join/';
+
+// Registration page invited students land on, resolved against this site's
+// own origin so the link always works wherever the app is actually hosted
+// (localhost while developing, the real domain once deployed) instead of
+// pointing at a domain that doesn't exist.
+// ⚠️ Change 'register.html' below if your sign-up page has a different name/path.
+const BASE_LINK = `${window.location.origin}/register.html`;
+
+// Builds one invite link carrying everything the registration page needs to
+// recognize the invite: which instructor it's from, which course(s) it
+// should enroll into, and — for a personal email invite — which address
+// it was sent to. A fresh token is minted per call, so every invite
+// (and every recipient in a batch) gets its own distinct link.
+function buildInviteLink(courseIds, email) {
+    const token  = Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+    const params = new URLSearchParams({ invite: `inv_${token}` });
+    if (email)               params.set('email', email);
+    if (courseIds?.length)   params.set('courses', courseIds.join(','));
+    if (currentInstructorId) params.set('instructor', currentInstructorId);
+    return `${BASE_LINK}?${params.toString()}`;
+}
 
 /* ─── INVITE MODAL ────────────────────── */
 (function () {
@@ -431,6 +456,9 @@ const BASE_LINK    = 'https://talentflow.app/join/';
 
         buildCourseChecks(emailChecks, emailCourseSelected);
         buildCourseChecks(linkChecks,  linkCourseSelected);
+        document.getElementById('inviteLink').textContent = buildInviteLink(linkCourseSelected);
+        copyBtnText.textContent = 'Copy';
+        copyLinkBtn.classList.remove('copied');
         switchTab('email');
         updateSendBtn();
     }
@@ -608,11 +636,10 @@ const BASE_LINK    = 'https://talentflow.app/join/';
 
         isSending = true;
         const emailList   = [...chips];
+        const courseIds   = emailCourseSelected.map(i => COURSES[i]?.id).filter(Boolean);
         const courseNames = emailCourseSelected.map(i => COURSES[i]?.title).filter(Boolean);
         const message     = document.getElementById('personalMsg').value.trim();
-        const isDemo      = EJS_KEY === 'YOUR_PUBLIC_KEY';
-        const inviteToken = Math.random().toString(36).slice(2, 10);
-        const inviteLink  = BASE_LINK + 'inv_' + inviteToken;
+        const isDemo      = EJS_KEY === 'YOUR_PUBLIC_KEY' || EJS_TEMPLATE === 'YOUR_TEMPLATE_ID';
 
         panelEmail.classList.add('hidden');
         modalTabsEl.style.display = 'none';
@@ -632,7 +659,8 @@ const BASE_LINK    = 'https://talentflow.app/join/';
         let sentCount = 0, failCount = 0;
 
         for (let i = 0; i < emailList.length; i++) {
-            const email = emailList[i];
+            const email      = emailList[i];
+            const inviteLink = buildInviteLink(courseIds, email); // unique link per recipient
             setProgressHead(`Sending ${i + 1} of ${emailList.length}…`, 'Please keep this window open', 'spinner');
             setItemStatus(email, 'sending');
 
@@ -685,8 +713,8 @@ const BASE_LINK    = 'https://talentflow.app/join/';
         if (activeTab === 'email') {
             await doSendEmails();
         } else {
-            const rand = Math.random().toString(36).slice(2, 10);
-            document.getElementById('inviteLink').textContent = `${BASE_LINK}inv_${rand}`;
+            const courseIds = linkCourseSelected.map(i => COURSES[i]?.id).filter(Boolean);
+            document.getElementById('inviteLink').textContent = buildInviteLink(courseIds);
             copyBtnText.textContent = 'Copy';
             copyLinkBtn.classList.remove('copied');
         }
