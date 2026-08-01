@@ -345,10 +345,10 @@ viewGridBtn.addEventListener('click', () => {
 // Until BOTH are filled in (neither left as the placeholder below),
 // invites run in demo mode: the UI simulates sending but no real email goes out.
 const EJS_KEY      = 'kYmKf4B1s1DtHVMq5';
-const EJS_SERVICE  = 'service_f4dl4md';
+const EJS_SERVICE  = 'service_r0319pe';
 const EJS_TEMPLATE = 'template_ynpr1m8';
 const SENDER_NAME  = 'CHIME VICTOR CHINAGOROM';
-const SENDER_EMAIL = 'victrends365@gmail.com';
+const SENDER_EMAIL = 'chimevictor365@gmail.com';
 
 // Registration page invited students land on, resolved against this site's
 // own origin so the link always works wherever the app is actually hosted
