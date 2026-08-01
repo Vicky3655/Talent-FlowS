@@ -355,7 +355,9 @@ const SENDER_EMAIL = 'victrends365@gmail.com';
 // (localhost while developing, the real domain once deployed) instead of
 // pointing at a domain that doesn't exist.
 // ⚠️ Change 'register.html' below if your sign-up page has a different name/path.
-const BASE_LINK = `${window.location.origin}/register.html`;
+// Resolve the registration page relative to the current page so the same
+// invite link works on localhost, a deployed subpath, or a local file preview.
+const BASE_LINK = new URL('register.html', window.location.href).href;
 
 // Builds one invite link carrying everything the registration page needs to
 // recognize the invite: which instructor it's from, which course(s) it
@@ -363,7 +365,7 @@ const BASE_LINK = `${window.location.origin}/register.html`;
 // it was sent to. A fresh token is minted per call, so every invite
 // (and every recipient in a batch) gets its own distinct link.
 // Returns { token, link } — the token is also what gets persisted to
-// Supabase (via TalentFlowInvites, see students.js) so the two stay
+// Supabase (via TalentFlowInvites, see invites-store.js) so the two stay
 // in sync without a second round trip.
 function buildInviteLink(courseIds, email) {
     const token  = Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
@@ -376,7 +378,7 @@ function buildInviteLink(courseIds, email) {
 
 // Best-effort persistence — a Supabase hiccup should never stop an invite
 // email from going out. window.TalentFlowInvites is defined by
-// students.js; the guard keeps this safe even if that file isn't
+// invites-store.js; the guard keeps this safe even if that file isn't
 // loaded yet on a given page.
 function persistInvite(token, email, courseIds, message) {
     if (!window.TalentFlowInvites) return;
@@ -491,8 +493,12 @@ function persistInvite(token, email, courseIds, message) {
         return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
     }
 
+    function normalizeEmail(raw) {
+        return raw.trim().replace(/,+$/, '');
+    }
+
     function addChip(raw) {
-        const email = raw.trim().replace(/,+$/, '');
+        const email = normalizeEmail(raw);
         if (!email) return;
         if (!isValidEmail(email)) { shakeChipInput(); return; }
         if (chips.includes(email)) { emailTyping.value = ''; return; }
@@ -501,6 +507,21 @@ function persistInvite(token, email, courseIds, message) {
         emailTyping.value = '';
         chipInput.classList.remove('empty');
         updateSendBtn();
+    }
+
+    function getDraftEmails() {
+        return emailTyping.value
+            .split(/[\s,;]+/)
+            .map(normalizeEmail)
+            .filter(Boolean);
+    }
+
+    function commitDraftEmails() {
+        const draftEmails = getDraftEmails();
+        if (!draftEmails.length) return 0;
+        emailTyping.value = '';
+        draftEmails.forEach(addChip);
+        return draftEmails.length;
     }
 
     function removeChip(email) {
@@ -537,12 +558,13 @@ function persistInvite(token, email, courseIds, message) {
     }
 
     emailTyping.addEventListener('keydown', e => {
-        if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addChip(emailTyping.value); }
+        if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); commitDraftEmails(); }
         if (e.key === 'Backspace' && !emailTyping.value && chips.length) removeChip(chips[chips.length - 1]);
     });
     emailTyping.addEventListener('paste', () => {
         setTimeout(() => { emailTyping.value.split(/[\s,;]+/).forEach(addChip); emailTyping.value = ''; }, 0);
     });
+    emailTyping.addEventListener('input', updateSendBtn);
     chipInput.addEventListener('click', () => emailTyping.focus());
 
     function buildCourseChecks(container, selectedArr) {
@@ -578,13 +600,16 @@ function persistInvite(token, email, courseIds, message) {
 
     function updateSendBtn() {
         if (activeTab === 'email') {
-            const n = chips.length;
-            btnSend.disabled = n === 0;
+            const draftEmails = new Set(
+                getDraftEmails().filter(email => isValidEmail(email) && !chips.includes(email))
+            );
+            const n = chips.length + draftEmails.size;
+            btnSend.disabled = n === 0 || isSending;
             sendBtnText.textContent = n === 0 ? 'Send invite'
                 : n === 1 ? 'Send 1 invite'
                 : `Send ${n} invites`;
         } else {
-            btnSend.disabled = false;
+            btnSend.disabled = isSending;
             sendBtnText.textContent = 'Regenerate link';
         }
     }
@@ -645,7 +670,7 @@ function persistInvite(token, email, courseIds, message) {
     }
 
     async function doSendEmails() {
-        if (emailTyping.value.trim()) addChip(emailTyping.value);
+        commitDraftEmails();
         if (chips.length === 0) return;
 
         isSending = true;
@@ -780,85 +805,3 @@ document.addEventListener('DOMContentLoaded', async () => {
     populateCourseFilter();
     render();
 });
-
-/* ─────────────────────────────────────────────────────────────
-   students.js
-   Supabase-backed persistence for student invites (email + share-link).
-
-   This does NOT replace Firebase — your existing auth and course/student
-   data stay exactly where they are. Supabase is used here purely as a
-   database for one thing: a durable record of who was invited, by which
-   instructor, into which course(s), and whether they've registered yet.
-   The public anon key below never talks to Supabase Auth and never needs
-   an instructor to "log into" Supabase — see the setup notes below for
-   why that's safe.
-
-   ── Setup (one-time) ──────────────────────────────────────────
-   1. Create a project at supabase.com (or use an existing one).
-   2. Dashboard → SQL Editor → New query → paste the contents of
-      invites-schema.sql → Run. That creates the `invites` table and
-      three functions (create_invite / get_invite / accept_invite) —
-      those functions are the ONLY way in; the table itself is locked
-      to direct access, so the public anon key below can never list,
-      browse, or bulk-edit every invite, only touch one row at a time
-      by its exact (unguessable) token.
-   3. Dashboard → Project Settings → API → copy the Project URL and
-      the anon/public key → paste them below.
-   ───────────────────────────────────────────────────────────── */
-(function () {
-    const SUPABASE_URL      = 'YOUR_SUPABASE_URL';       // e.g. https://xxxxxxxx.supabase.co
-    const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';  // Project Settings → API → anon/public key
-
-    const isConfigured = SUPABASE_URL !== 'YOUR_SUPABASE_URL' && SUPABASE_ANON_KEY !== 'YOUR_SUPABASE_ANON_KEY';
-
-    if (!isConfigured) {
-        console.warn('[TalentFlowInvites] Supabase not configured yet — invites will send but won\u2019t be recorded. Add your Project URL and anon key in students.js.');
-    }
-    if (isConfigured && !window.supabase) {
-        console.error('[TalentFlowInvites] Supabase client library not found — check that the CDN <script> tag loads before students.js.');
-    }
-
-    const client = (isConfigured && window.supabase)
-        ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
-        : null;
-
-    // Every function here is deliberately best-effort: an invite record is a
-    // nice-to-have on top of the email/link itself, so a Supabase outage or
-    // a stale placeholder key should never be the reason an instructor
-    // couldn't send an invite. Callers see a rejected promise on failure —
-    // students.js already catches these so a DB hiccup doesn't block sending.
-
-    async function createInvite({ token, instructorId, email, courseIds, message }) {
-        if (!client) return null;
-        const { data, error } = await client.rpc('create_invite', {
-            p_token:         token,
-            p_instructor_id: instructorId || null,
-            p_email:         email || null,
-            p_course_ids:    (courseIds && courseIds.length) ? courseIds : null,
-            p_message:       message || null,
-        });
-        if (error) throw error;
-        return data; // the new row's id
-    }
-
-    // For the registration page: looks up everything needed to know who
-    // invited this person and what to enroll them in. Returns null if the
-    // token doesn't exist (invalid or already-used links just look "empty").
-    async function getInvite(token) {
-        if (!client) return null;
-        const { data, error } = await client.rpc('get_invite', { p_token: token });
-        if (error) throw error;
-        return Array.isArray(data) ? (data[0] || null) : data;
-    }
-
-    // For the registration page: call once signup succeeds, so the invite
-    // is marked used and (via get_invite) won't be reused.
-    async function acceptInvite(token) {
-        if (!client) return null;
-        const { error } = await client.rpc('accept_invite', { p_token: token });
-        if (error) throw error;
-        return true;
-    }
-
-    window.TalentFlowInvites = { createInvite, getInvite, acceptInvite };
-})();
