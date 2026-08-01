@@ -678,7 +678,7 @@ function persistInvite(token, email, courseIds, message) {
         const courseIds   = emailCourseSelected.map(i => COURSES[i]?.id).filter(Boolean);
         const courseNames = emailCourseSelected.map(i => COURSES[i]?.title).filter(Boolean);
         const message     = document.getElementById('personalMsg').value.trim();
-        const isDemo      = EJS_KEY === 'YRtV6OjHqgCt9kEUR' || EJS_TEMPLATE === 'template_t02zlfa';
+        const isDemo      = /^YOUR_/.test(EJS_KEY) || /^YOUR_/.test(EJS_TEMPLATE);
 
         panelEmail.classList.add('hidden');
         modalTabsEl.style.display = 'none';
