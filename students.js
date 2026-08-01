@@ -344,11 +344,11 @@ viewGridBtn.addEventListener('click', () => {
 //   EJS_TEMPLATE → Email Templates → your template's ID
 // Until BOTH are filled in (neither left as the placeholder below),
 // invites run in demo mode: the UI simulates sending but no real email goes out.
-const EJS_KEY      = 'kYmKf4B1s1DtHVMq5';
-const EJS_SERVICE  = 'service_r0319pe';
-const EJS_TEMPLATE = 'template_ynpr1m8';
+const EJS_KEY      = 'YRtV6OjHqgCt9kEUR';
+const EJS_SERVICE  = 'service_f4dl4md';
+const EJS_TEMPLATE = 'template_t02zlfa';
 const SENDER_NAME  = 'CHIME VICTOR CHINAGOROM';
-const SENDER_EMAIL = 'chimevictor365@gmail.com';
+const SENDER_EMAIL = 'victrends365@gmail.com';
 
 // Registration page invited students land on, resolved against this site's
 // own origin so the link always works wherever the app is actually hosted
@@ -678,7 +678,7 @@ function persistInvite(token, email, courseIds, message) {
         const courseIds   = emailCourseSelected.map(i => COURSES[i]?.id).filter(Boolean);
         const courseNames = emailCourseSelected.map(i => COURSES[i]?.title).filter(Boolean);
         const message     = document.getElementById('personalMsg').value.trim();
-        const isDemo      = EJS_KEY === 'YOUR_PUBLIC_KEY' || EJS_TEMPLATE === 'YOUR_TEMPLATE_ID';
+        const isDemo      = EJS_KEY === 'YRtV6OjHqgCt9kEUR' || EJS_TEMPLATE === 'template_t02zlfa';
 
         panelEmail.classList.add('hidden');
         modalTabsEl.style.display = 'none';
