@@ -346,7 +346,7 @@ viewGridBtn.addEventListener('click', () => {
 // invites run in demo mode: the UI simulates sending but no real email goes out.
 const EJS_KEY      = 'kYmKf4B1s1DtHVMq5';
 const EJS_SERVICE  = 'service_f4dl4md';
-const EJS_TEMPLATE = 'YOUR_TEMPLATE_ID';
+const EJS_TEMPLATE = 'template_ynpr1m8';
 const SENDER_NAME  = 'CHIME VICTOR CHINAGOROM';
 const SENDER_EMAIL = 'victrends365@gmail.com';
 
