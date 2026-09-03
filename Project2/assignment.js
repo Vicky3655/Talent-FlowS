@@ -84,6 +84,7 @@ function toUiAssignment(a) {
 
     return {
         id: a.id,
+        instructorId: a.instructorId,
         title: a.title,
         course: a.course,
         dueDate: a.dueDate,
@@ -272,6 +273,24 @@ function closeSubmitModal() {
     currentSubmitId = null;
 }
 
+/* ── Notify the instructor a submission came in ──────────────
+   Backed by notifications-store.js — lights up the red dot on
+   the instructor's Assignments sidebar icon. Never blocks the
+   submission itself if this fails. ─────────────────────────── */
+function notifyInstructorOfSubmission(assignment) {
+    if (!window.TalentFlowNotifications || !assignment.instructorId) return;
+    const student = TalentFlowNotifications.resolveStudentIdentity();
+    TalentFlowNotifications.notifySubmission({
+        instructorId: assignment.instructorId,
+        studentId: student.id,
+        studentName: student.name,
+        studentAvatar: student.avatar,
+        courseTitle: assignment.course,
+        assignmentId: assignment.id,
+        assignmentTitle: assignment.title,
+    });
+}
+
 /* ── Confirm submission ── */
 async function handleSubmit() {
     const link = document.getElementById('submitLink').value.trim();
@@ -299,6 +318,8 @@ async function handleSubmit() {
             text: `"${a.title}" is now waiting on your instructor to grade it.`,
             time: 'Just now',
         });
+
+        notifyInstructorOfSubmission(a);
     } catch (err) {
         console.error('Submitting assignment failed:', err);
         showToast('Could not submit — please try again', 'error');
