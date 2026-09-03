@@ -7,74 +7,6 @@
 // empty state below until they create their first course.
 let courses = [];
 
-// Simulated student notifications
-const notifications = [
-    {
-        id: 1,
-        student: 'Amara Okafor',
-        avatar: 'https://i.pravatar.cc/40?img=5',
-        courseTitle: 'Cloud Computing & AWS',
-        action: 'enrolled in',
-        time: '2 min ago',
-        unread: true
-    },
-    {
-        id: 2,
-        student: 'Daniel Mensah',
-        avatar: 'https://i.pravatar.cc/40?img=11',
-        courseTitle: 'UI/UX Design Fundamentals',
-        action: 'accessed material in',
-        time: '18 min ago',
-        unread: true
-    },
-    {
-        id: 3,
-        student: 'Chidinma Adeyemi',
-        avatar: 'https://i.pravatar.cc/40?img=9',
-        courseTitle: 'Data Analysis with Python & SQL',
-        action: 'completed Lesson 4 in',
-        time: '1 hr ago',
-        unread: true
-    },
-    {
-        id: 4,
-        student: 'Emeka Nwosu',
-        avatar: 'https://i.pravatar.cc/40?img=15',
-        courseTitle: 'Introduction to Product Design',
-        action: 'enrolled in',
-        time: '3 hr ago',
-        unread: false
-    },
-    {
-        id: 5,
-        student: 'Fatima Bello',
-        avatar: 'https://i.pravatar.cc/40?img=20',
-        courseTitle: 'Cloud Computing & AWS',
-        action: 'downloaded a file from',
-        time: 'Yesterday',
-        unread: false
-    }
-];
-
-// Per-course activity log (simulated)
-const courseActivity = {
-    1: [
-        { student: 'Emeka Nwosu', avatar: 'https://i.pravatar.cc/40?img=15', action: 'enrolled', time: '3 hr ago' },
-        { student: 'Kemi Adebayo', avatar: 'https://i.pravatar.cc/40?img=22', action: 'completed Lesson 2', time: '1 day ago' }
-    ],
-    2: [
-        { student: 'Daniel Mensah', avatar: 'https://i.pravatar.cc/40?img=11', action: 'accessed material', time: '18 min ago' },
-    ],
-    4: [
-        { student: 'Chidinma Adeyemi', avatar: 'https://i.pravatar.cc/40?img=9', action: 'completed Lesson 4', time: '1 hr ago' },
-        { student: 'Tunde Afolabi', avatar: 'https://i.pravatar.cc/40?img=33', action: 'enrolled', time: '2 days ago' }
-    ],
-    6: [
-        { student: 'Amara Okafor', avatar: 'https://i.pravatar.cc/40?img=5', action: 'enrolled', time: '2 min ago' },
-        { student: 'Fatima Bello', avatar: 'https://i.pravatar.cc/40?img=20', action: 'downloaded AWS Architecture Guide.pdf', time: 'Yesterday' }
-    ]
-};
-
 // State
 let currentFilter = 'all';
 let currentSearch = '';
@@ -105,9 +37,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     initSort();
     initModal();
     initDrawer();
-    initNotifications();
     initMobileMenu();
-    simulateStudentActivity();
+    // Notification bell, badge, and sidebar "unread" dots are handled
+    // globally by notifications-ui.js (backed by notifications-store.js),
+    // shared across every instructor page — see those files.
 });
 
 // ═══════════════════════════════════════════
@@ -505,84 +438,63 @@ async function removeDrawerFile(courseId, idx) {
     }
 }
 
+// Real per-course activity, backed by notifications-store.js — replaces
+// the old hardcoded demo log. Every enrollment and every "opened course
+// materials" event a student triggers on the Project2 course catalog
+// shows up here, scoped to this one course.
 function renderDrawerActivity(courseId) {
     const container = document.getElementById('drawer-activity-list');
-    const activity = courseActivity[courseId] || [];
-    if (!activity.length) {
+    if (!container) return;
+    container.innerHTML = '<div class="activity-empty">Loading…</div>';
+
+    if (!window.TalentFlowNotifications || !currentInstructorId) {
         container.innerHTML = '<div class="activity-empty">No student activity yet for this course.</div>';
         return;
     }
-    container.innerHTML = activity.map(a => `
-        <div class="activity-item">
-            <img src="${a.avatar}" alt="${a.student}">
-            <div class="activity-body">
-                <strong>${a.student}</strong>
-                <p>${a.action} this course</p>
-                <span class="at">${a.time}</span>
-            </div>
-        </div>
-    `).join('');
+
+    TalentFlowNotifications.getForCourse(currentInstructorId, courseId)
+        .then((activity) => {
+            // The drawer may have already moved on to a different course
+            // by the time this resolves — don't paint stale data over it.
+            if (drawerCourseId !== courseId) return;
+
+            if (!activity.length) {
+                container.innerHTML = '<div class="activity-empty">No student activity yet for this course.</div>';
+                return;
+            }
+
+            container.innerHTML = activity.map(a => {
+                const avatar = a.studentAvatar || (window.TalentFlowAuth?.initialsAvatar ? TalentFlowAuth.initialsAvatar(a.studentName) : '');
+                return `
+                <div class="activity-item">
+                    <img src="${avatar}" alt="${a.studentName}">
+                    <div class="activity-body">
+                        <strong>${a.studentName}</strong>
+                        <p>${a.message}</p>
+                        <span class="at">${relativeTime(a.createdAt)}</span>
+                    </div>
+                </div>`;
+            }).join('');
+        })
+        .catch((err) => {
+            console.error('Loading course activity failed:', err);
+            if (drawerCourseId === courseId) {
+                container.innerHTML = '<div class="activity-empty">Could not load activity — try again.</div>';
+            }
+        });
 }
 
-// ═══════════════════════════════════════════
-//  NOTIFICATIONS
-// ═══════════════════════════════════════════
-function initNotifications() {
-    const btn = document.getElementById('notif-btn');
-    const panel = document.getElementById('notif-panel');
-    const backdrop = document.getElementById('notif-backdrop');
-
-    btn.addEventListener('click', e => {
-        e.stopPropagation();
-        panel.classList.toggle('open');
-        backdrop.classList.toggle('open', panel.classList.contains('open'));
-        if (panel.classList.contains('open')) renderNotifPanel();
-    });
-
-    backdrop.addEventListener('click', () => {
-        panel.classList.remove('open');
-        backdrop.classList.remove('open');
-    });
-
-    document.getElementById('notif-clear-all').addEventListener('click', () => {
-        notifications.forEach(n => n.unread = false);
-        updateBadge();
-        renderNotifPanel();
-    });
-
-    updateBadge();
-    renderNotifPanel();
-}
-
-function renderNotifPanel() {
-    const list = document.getElementById('notif-list');
-    if (!notifications.length) {
-        list.innerHTML = '<div class="notif-empty">No notifications yet.</div>';
-        return;
-    }
-    list.innerHTML = notifications.map(n => `
-        <div class="notif-item ${n.unread ? 'unread' : ''}" onclick="markNotifRead(${n.id})">
-            <img class="notif-avatar" src="${n.avatar}" alt="${n.student}">
-            <div class="notif-body">
-                <strong>${n.student}</strong>
-                <p>${n.action} <em>${n.courseTitle}</em></p>
-                <span class="notif-time">${n.time}</span>
-            </div>
-            ${n.unread ? '<div class="notif-unread-dot"></div>' : ''}
-        </div>
-    `).join('');
-}
-
-function markNotifRead(id) {
-    const n = notifications.find(n => n.id === id);
-    if (n) { n.unread = false; updateBadge(); renderNotifPanel(); }
-}
-
-function updateBadge() {
-    const count = notifications.filter(n => n.unread).length;
-    const badge = document.getElementById('notif-badge');
-    badge.textContent = count;
-    badge.classList.toggle('hidden', count === 0);
+function relativeTime(iso) {
+    const diffMs = Date.now() - new Date(iso).getTime();
+    const mins = Math.round(diffMs / 60000);
+    if (mins < 1) return 'Just now';
+    if (mins < 60) return `${mins} min ago`;
+    const hrs = Math.round(mins / 60);
+    if (hrs < 24) return `${hrs} hr${hrs > 1 ? 's' : ''} ago`;
+    const days = Math.round(hrs / 24);
+    if (days === 1) return 'Yesterday';
+    if (days < 7) return `${days} days ago`;
+    return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
 // ═══════════════════════════════════════════
@@ -618,45 +530,6 @@ function showToast(title, msg, type = 'success') {
     };
     el.addEventListener('click', dismiss);
     setTimeout(dismiss, 4500);
-}
-
-// ═══════════════════════════════════════════
-//  SIMULATE STUDENT ACTIVITY (demo)
-// ═══════════════════════════════════════════
-const fakeStudents = [
-    { name: 'Ngozi Okonkwo', avatar: 'https://i.pravatar.cc/40?img=47' },
-    { name: 'Seun Adeyemi',  avatar: 'https://i.pravatar.cc/40?img=55' },
-    { name: 'Zainab Musa',   avatar: 'https://i.pravatar.cc/40?img=44' }
-];
-const fakeActions = ['enrolled in', 'completed a lesson in', 'downloaded a file from', 'started watching'];
-
-function simulateStudentActivity() {
-    // Fire a demo notification after 12s, then every 30s
-    setTimeout(() => fireRandomNotification(), 12000);
-    setInterval(() => fireRandomNotification(), 30000);
-}
-
-function fireRandomNotification() {
-    const notifyableCourses = courses.filter(c => c.notify && c.status === 'published');
-    if (!notifyableCourses.length) return;
-    const course = notifyableCourses[Math.floor(Math.random() * notifyableCourses.length)];
-    const student = fakeStudents[Math.floor(Math.random() * fakeStudents.length)];
-    const action = fakeActions[Math.floor(Math.random() * fakeActions.length)];
-
-    const newNotif = {
-        id: Date.now(),
-        student: student.name,
-        avatar: student.avatar,
-        courseTitle: course.title,
-        action,
-        time: 'Just now',
-        unread: true
-    };
-    notifications.unshift(newNotif);
-    updateBadge();
-    renderNotifPanel();
-
-    showToast('New student activity', `${student.name} ${action} "${course.title}".`, 'info');
 }
 
 // ═══════════════════════════════════════════
