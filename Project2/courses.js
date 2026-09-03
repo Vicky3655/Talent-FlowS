@@ -38,6 +38,12 @@ let myEnrollments = new Set();
 let searchTerm = '';
 let activeFilter = 'all';
 
+// Only ping the instructor once per course per page-load when a student
+// opens the materials modal — reopening the same modal to re-read
+// something they already opened isn't new activity worth notifying
+// about again.
+const notifiedMaterialAccess = new Set();
+
 document.addEventListener('DOMContentLoaded', async () => {
     setupNavPopups();
     initFiltersAndSearch();
@@ -254,6 +260,37 @@ function fallbackAvatar(name) {
     return 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&q=80';
 }
 
+/* ── INSTRUCTOR NOTIFICATIONS ──────────────────────────────
+   Backed by notifications-store.js — lights up the red dot on
+   the instructor's Courses/Students/Assignments sidebar icons
+   and shows up in their "Student Activity" bell. Never blocks
+   the student's own action if it fails. ────────────────────── */
+function notifyInstructorOfEnrollment(course) {
+    if (!window.TalentFlowNotifications || !course.instructorId) return;
+    const student = TalentFlowNotifications.resolveStudentIdentity();
+    TalentFlowNotifications.notifyEnrollment({
+        instructorId: course.instructorId,
+        studentId: student.id,
+        studentName: student.name,
+        studentAvatar: student.avatar,
+        courseId: course.id,
+        courseTitle: course.title,
+    });
+}
+
+function notifyInstructorOfMaterialAccess(course) {
+    if (!window.TalentFlowNotifications || !course.instructorId) return;
+    const student = TalentFlowNotifications.resolveStudentIdentity();
+    TalentFlowNotifications.notifyMaterialAccess({
+        instructorId: course.instructorId,
+        studentId: student.id,
+        studentName: student.name,
+        studentAvatar: student.avatar,
+        courseId: course.id,
+        courseTitle: course.title,
+    });
+}
+
 /* ── ENROLL ACTION ── */
 async function enroll(courseId, btn) {
     const course = allCourses.find(c => c.id === courseId);
@@ -266,6 +303,7 @@ async function enroll(courseId, btn) {
     try {
         await auth.enrollInCourse(course);
         myEnrollments.add(courseId);
+        notifyInstructorOfEnrollment(course);
 
         btn.disabled = false;
         btn.classList.add('is-enrolled');
@@ -369,6 +407,11 @@ function openCourseMaterialsModal(courseId) {
 
     document.getElementById('materialsModal').classList.add('open');
     document.body.style.overflow = 'hidden';
+
+    if (!notifiedMaterialAccess.has(courseId)) {
+        notifiedMaterialAccess.add(courseId);
+        notifyInstructorOfMaterialAccess(course);
+    }
 }
 
 function closeCourseMaterialsModal() {
