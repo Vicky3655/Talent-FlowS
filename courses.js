@@ -139,6 +139,7 @@ function initSort() {
 //  MODAL — ADD / EDIT COURSE
 // ═══════════════════════════════════════════
 let pendingMaterials = []; // files staged in modal step 2
+let pendingThumbFile = null; // local image file staged for upload on Save — see stageThumbFile()
 
 function initModal() {
     const modal = document.getElementById('course-modal');
@@ -168,14 +169,21 @@ function initModal() {
     thumbDrop.addEventListener('drop', e => {
         e.preventDefault(); thumbDrop.classList.remove('drag-over');
         const file = e.dataTransfer.files[0];
-        if (file && file.type.startsWith('image/')) previewThumb(file);
+        if (file && file.type.startsWith('image/')) stageThumbFile(file);
     });
     thumbFileInput.addEventListener('change', () => {
-        if (thumbFileInput.files[0]) previewThumb(thumbFileInput.files[0]);
+        if (thumbFileInput.files[0]) stageThumbFile(thumbFileInput.files[0]);
+        thumbFileInput.value = ''; // lets picking the exact same file twice in a row still fire "change"
     });
     thumbUrlInput.addEventListener('input', () => {
         const url = thumbUrlInput.value.trim();
-        if (url) showThumbPreview(url);
+        if (url) {
+            // Typing a URL directly means "use this instead of the file I
+            // just picked" — drop the staged file so Save doesn't upload
+            // it and silently overwrite the link now sitting in this box.
+            pendingThumbFile = null;
+            showThumbPreview(url);
+        }
     });
 
     // Materials drop zone
@@ -203,6 +211,7 @@ function initModal() {
 function openAddModal() {
     editingCourseId = null;
     pendingMaterials = [];
+    pendingThumbFile = null;
     resetModalForm();
     document.getElementById('modal-title').textContent = 'Add New Course';
     document.getElementById('course-submit').textContent = 'Create Course';
@@ -216,6 +225,7 @@ function openEditModal(id) {
     if (!course) return;
     editingCourseId = id;
     pendingMaterials = [...course.materials];
+    pendingThumbFile = null;
     resetModalForm();
     document.getElementById('modal-title').textContent = 'Edit Course';
     document.getElementById('course-submit').textContent = 'Save Changes';
@@ -238,6 +248,7 @@ function openEditModal(id) {
 function closeModal() {
     document.getElementById('course-modal').classList.remove('open');
     pendingMaterials = [];
+    pendingThumbFile = null;
 }
 
 function resetModalForm() {
@@ -258,7 +269,17 @@ function goToStep(step) {
     document.querySelectorAll('.modal-step').forEach(s => s.classList.toggle('active', parseInt(s.dataset.step) === step));
 }
 
-function previewThumb(file) {
+// Keeps the actual File around (not just a preview) so submitCourse()
+// can upload it to Supabase Storage on Save — see uploadCourseThumbnail()
+// in data-store.js. The data-URL preview shown here is purely local and
+// temporary; it's never what gets saved as the course's thumbnail.
+function stageThumbFile(file) {
+    const MAX_SIZE = 5 * 1024 * 1024; // 5MB
+    if (file.size > MAX_SIZE) {
+        showToast('Image too large', 'Please choose an image under 5MB.', 'warn');
+        return;
+    }
+    pendingThumbFile = file;
     const reader = new FileReader();
     reader.onload = e => showThumbPreview(e.target.result);
     reader.readAsDataURL(file);
@@ -301,8 +322,31 @@ async function submitCourse() {
     const title = document.getElementById('f-title').value.trim();
     if (!title) { document.getElementById('f-title').focus(); goToStep(1); showToast('Missing title', 'Please enter a course title.', 'warn'); return; }
 
-    const thumbUrl = document.getElementById('f-thumb-url').value.trim() ||
+    const submitBtn = document.getElementById('course-submit');
+    const originalLabel = submitBtn.textContent;
+    submitBtn.disabled = true;
+
+    // Whatever's typed in the URL box is the fallback (and the whole
+    // story, for anyone who just pastes a link) — but a locally-picked
+    // image always wins, since that's what the preview is actually
+    // showing. Upload it to Storage now and use the real, permanent URL
+    // that comes back instead of quietly discarding the file and
+    // falling through to the URL box or the stock placeholder.
+    const thumbUrlInput = document.getElementById('f-thumb-url');
+    let thumbUrl = thumbUrlInput.value.trim() ||
         'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=400&q=80';
+
+    if (pendingThumbFile) {
+        submitBtn.textContent = 'Uploading image…';
+        try {
+            thumbUrl = await TalentFlowData.uploadCourseThumbnail(currentInstructorId, pendingThumbFile);
+            thumbUrlInput.value = thumbUrl; // the URL box now reflects the real, saved image
+            pendingThumbFile = null;
+        } catch (err) {
+            console.error('Thumbnail upload failed:', err);
+            showToast('Image upload failed', "Couldn't upload that image — saving with the URL/placeholder for now. Feel free to try again.", 'warn');
+        }
+    }
 
     const courseData = {
         title,
@@ -315,9 +359,6 @@ async function submitCourse() {
         materials: pendingMaterials.map(({ _file, ...rest }) => rest)
     };
 
-    const submitBtn = document.getElementById('course-submit');
-    const originalLabel = submitBtn.textContent;
-    submitBtn.disabled = true;
     submitBtn.textContent = 'Saving…';
 
     try {
