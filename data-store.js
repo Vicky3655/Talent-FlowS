@@ -72,6 +72,42 @@ async function updateCourseMaterials(courseId, materials) {
   if (error) throw error;
 }
 
+/* ── COURSE THUMBNAILS (Supabase Storage) ─────────────────────
+   Mirrors auth.js's uploadAvatar() — only the resulting public
+   URL gets stored on the course row (see courses.js's
+   submitCourse()), so a thumbnail an instructor picks from their
+   own computer shows up for every student browsing the catalog,
+   on any device, the same way an uploaded avatar does.
+
+   Run course-thumbnails-storage.sql once first in the Supabase
+   SQL editor — it creates the "course-thumbnails" bucket and the
+   policies this depends on. ─────────────────────────────────── */
+async function uploadCourseThumbnail(instructorId, fileOrDataUrl) {
+  let fileBody = fileOrDataUrl;
+  let contentType = 'image/jpeg';
+  let ext = 'jpg';
+
+  if (typeof fileOrDataUrl === 'string') {
+    const res = await fetch(fileOrDataUrl);
+    fileBody = await res.blob();
+    contentType = fileBody.type || contentType;
+  } else {
+    contentType = fileOrDataUrl.type || contentType;
+    const nameExt = (fileOrDataUrl.name || '').split('.').pop();
+    if (nameExt) ext = nameExt;
+  }
+
+  const path = `${instructorId}/${Date.now()}.${ext}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from('course-thumbnails')
+    .upload(path, fileBody, { contentType, upsert: true });
+  if (uploadError) throw uploadError;
+
+  const { data } = supabase.storage.from('course-thumbnails').getPublicUrl(path);
+  return data.publicUrl;
+}
+
 /* ── STUDENT-FACING CATALOG ──────────────────────────────────
    Published courses, joined with each instructor's public
    name/photo from the public_profiles view — the Postgres
@@ -313,6 +349,7 @@ window.TalentFlowData = {
   getCourses,
   saveCourse,
   updateCourseMaterials,
+  uploadCourseThumbnail,
   getPublishedCourses,
   getAssignments,
   saveAssignment,
